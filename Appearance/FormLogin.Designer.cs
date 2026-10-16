@@ -1,6 +1,6 @@
 ﻿namespace ChatApp_Client__gd2_3_
 {
-    partial class Form1
+    partial class FormLogin
     {
         /// <summary>
         ///  Required designer variable.
