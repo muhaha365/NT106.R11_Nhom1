@@ -1,1 +1,0 @@
-Tạo các model nội bộ dựa trên schema database của nhóm sau khi đối chiếu schema. Model có password hash chỉ nằm phía server; không gửi model đó trực tiếp về client. Hiện chưa thêm model để tránh tự giả định cấu trúc bảng.

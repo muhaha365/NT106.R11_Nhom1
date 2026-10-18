@@ -1,4 +1,4 @@
-namespace ChatApp.Server.Networking;
+namespace ChatApp.Server;
 
 /// <summary>
 /// Lắng nghe TCP và tiếp nhận nhiều kết nối client.

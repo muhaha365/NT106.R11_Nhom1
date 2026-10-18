@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace ChatApp.Shared.Protocol;
+namespace ChatApp.Shared;
 
 // Phần bao ngoài của một yêu cầu, phản hồi hoặc sự kiện.
 public class Packet

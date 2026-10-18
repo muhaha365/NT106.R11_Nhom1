@@ -12,13 +12,4 @@
     <ProjectReference Include="../ChatApp.Shared/ChatApp.Shared.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Compile Update="Controls\FriendListControl.cs">
-      <SubType>UserControl</SubType>
-    </Compile>
-    <Compile Update="Controls\MessageBubbleControl.cs">
-      <SubType>UserControl</SubType>
-    </Compile>
-  </ItemGroup>
-
 </Project>
