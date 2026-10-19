@@ -1,5 +1,20 @@
-Console.WriteLine("ChatApp.Server");
-Console.WriteLine("Chua trien khai ket noi mang.");
-Console.WriteLine("Nhan Enter de thoat.");
+﻿using System.Net.Sockets;
+using ChatApp.Server;
 
-Console.ReadLine();
+using var cancellation = new CancellationTokenSource();
+Console.CancelKeyPress += (_, e) =>
+{
+    e.Cancel = true;
+    cancellation.Cancel();
+};
+
+Console.WriteLine("Nhấn Ctrl+C để dừng server");
+try
+{
+    var server = new ChatServer();
+    await server.RunAsync(5000, cancellation.Token);
+}
+catch(SocketException ex)
+{
+    Console.WriteLine($"Lỗi mạng: {ex.Message}");
+}

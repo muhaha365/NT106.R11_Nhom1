@@ -1,11 +1,40 @@
+using System.Net.Sockets;
 namespace ChatApp.Client;
 
 /// <summary>
 /// Giữ một kết nối TCP dùng chung trong ứng dụng client.
 /// Khung lớp: chưa triển khai chức năng.
 /// </summary>
-public class ClientConnection
+public class ClientConnection : IDisposable
 {
+    private TcpClient? _tcpClient;
+    
+    public async Task ConnectAsync(string host, int port)
+    {
+        Disconnect();
+        var tcpClient = new TcpClient();
+        _tcpClient = tcpClient;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try
+        {
+            await tcpClient.ConnectAsync(host, port, timeout.Token);
+        }
+        catch
+        {
+            tcpClient.Dispose();
+            _tcpClient = null;
+            throw;
+        }
+    }
+    public void Disconnect()
+    {
+        _tcpClient?.Dispose();
+        _tcpClient = null;
+    }
+    public void Dispose()
+    {
+        Disconnect();
+    }
     // TODO: Kết nối/ngắt kết nối bất đồng bộ; một vòng nhận gói; tuần tự hóa việc ghi.
     // TODO: Phát sự kiện dữ liệu tới service. Không truy cập trực tiếp control WinForms.
 }
