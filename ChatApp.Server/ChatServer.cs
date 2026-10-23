@@ -9,7 +9,7 @@ namespace ChatApp.Server;
 /// </summary>
 public class ChatServer
 {
-    public async Task Run(int port)
+    public async Task Run(int port, CancellationToken ct)
     {
         TcpListener listener = new TcpListener(IPAddress.Loopback, port);
         List<ConnectedClient> clients = new List<ConnectedClient>();
@@ -19,11 +19,15 @@ public class ChatServer
             Console.WriteLine($"Server đang chờ tại 127.0.0.1: {port}");
             while (true)
             {
-                TcpClient tcpClient = await listener.AcceptTcpClientAsync();
+                TcpClient tcpClient = await listener.AcceptTcpClientAsync(ct);
                 ConnectedClient client = new ConnectedClient(tcpClient);
                 clients.Add(client);
                 Console.WriteLine($"Client {tcpClient.Client.RemoteEndPoint} đã kết nối.");
             }
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("Server đã dừng.");
         }
         catch (Exception ex)
         {

@@ -12,7 +12,7 @@ Console.WriteLine("Nhấn Ctrl+C để dừng server");
 try
 {
     ChatServer server = new ChatServer();
-    await server.Run(5000);
+    await server.Run(5000, cancellation.Token);
 }
 catch(SocketException ex)
 {
