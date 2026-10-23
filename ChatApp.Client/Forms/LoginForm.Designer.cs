@@ -45,6 +45,7 @@
             txtPassword = new TextBox();
             label12 = new Label();
             label13 = new Label();
+            btn_demo_chat = new Button();
             panel1.SuspendLayout();
             SuspendLayout();
             // 
@@ -235,6 +236,16 @@
             label13.TextAlign = ContentAlignment.TopRight;
             label13.Click += label13_Click;
             // 
+            // btn_demo_chat
+            // 
+            btn_demo_chat.Location = new Point(606, 468);
+            btn_demo_chat.Name = "btn_demo_chat";
+            btn_demo_chat.Size = new Size(127, 29);
+            btn_demo_chat.TabIndex = 13;
+            btn_demo_chat.Text = "Demo chat";
+            btn_demo_chat.UseVisualStyleBackColor = true;
+            btn_demo_chat.Click += btn_demo_chat_Click;
+            // 
             // LoginForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -242,6 +253,7 @@
             AutoSizeMode = AutoSizeMode.GrowAndShrink;
             BackColor = Color.Honeydew;
             ClientSize = new Size(901, 521);
+            Controls.Add(btn_demo_chat);
             Controls.Add(label13);
             Controls.Add(label12);
             Controls.Add(label11);
@@ -283,5 +295,6 @@
         private TextBox txtPassword;
         private Label label12;
         private Label label13;
+        private Button btn_demo_chat;
     }
 }

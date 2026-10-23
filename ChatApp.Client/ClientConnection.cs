@@ -29,33 +29,13 @@ public class ClientConnection : IDisposable
         }
     }
 
-    public async Task ReceiveLoopAsync()
+    public async Task<Packet?> ReceiveAsync()
     {
         if(_tcpClient == null)
         {
             throw new InvalidOperationException("Chưa kết nối tới server.");
         }
-
-        try
-        {
-            while(true)
-            {
-                Packet? packet = await _packetIO.ReceivePacketAsync();
-                if(packet == null)
-                {
-                    break;
-                }
-                if(packet.Type == "chat")
-                {
-                    string? message = packet.Payload?.GetString();
-                    MessageBox.Show($"Nhận từ server: {message}");
-                }
-            }
-        }
-        finally
-        {
-            Disconnect();
-        }
+        return await _packetIO.ReceivePacketAsync();
     }
     public async Task SendAsync(Packet packet)
     {

@@ -59,7 +59,7 @@ namespace ChatApp.Client.Forms
                 };
 
                 await _connection.SendAsync(packet);
-                await _connection.ReceiveLoopAsync();
+                await _connection.ReceiveAsync();
 
                 if (IsDisposed || Disposing) return;
                 MessageBox.Show(this, "Kết nối tới server đã đóng");
@@ -105,6 +105,12 @@ namespace ChatApp.Client.Forms
         private void label12_Click(object sender, EventArgs e)
         {
 
+        }
+
+        private void btn_demo_chat_Click(object sender, EventArgs e)
+        {
+            MainForm form = new MainForm();
+            form.Show();
         }
     }
 }
