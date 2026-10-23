@@ -51,7 +51,7 @@
             // btn_connect
             // 
             btn_connect.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
-            btn_connect.Location = new Point(541, 376);
+            btn_connect.Location = new Point(545, 376);
             btn_connect.Margin = new Padding(3, 4, 3, 4);
             btn_connect.Name = "btn_connect";
             btn_connect.Size = new Size(267, 47);
@@ -160,11 +160,11 @@
             // label8
             // 
             label8.AutoSize = true;
-            label8.Font = new Font("Segoe UI", 20F, FontStyle.Bold);
+            label8.Font = new Font("Segoe UI", 30F, FontStyle.Bold);
             label8.ForeColor = Color.Black;
-            label8.Location = new Point(541, 20);
+            label8.Location = new Point(478, 48);
             label8.Name = "label8";
-            label8.Size = new Size(262, 46);
+            label8.Size = new Size(388, 67);
             label8.TabIndex = 7;
             label8.Text = "Welcome Back!";
             // 
@@ -173,7 +173,7 @@
             label9.AutoSize = true;
             label9.Font = new Font("Segoe UI", 10F);
             label9.ForeColor = Color.DarkGray;
-            label9.Location = new Point(573, 82);
+            label9.Location = new Point(573, 124);
             label9.Name = "label9";
             label9.Size = new Size(316, 23);
             label9.TabIndex = 7;
@@ -239,6 +239,7 @@
             // 
             AutoScaleDimensions = new SizeF(9F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
+            AutoSizeMode = AutoSizeMode.GrowAndShrink;
             BackColor = Color.Honeydew;
             ClientSize = new Size(901, 521);
             Controls.Add(label13);

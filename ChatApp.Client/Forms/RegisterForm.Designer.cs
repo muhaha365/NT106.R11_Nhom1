@@ -29,64 +29,163 @@
         private void InitializeComponent()
         {
             panel1 = new Panel();
-            label7 = new Label();
-            label6 = new Label();
+            panel2 = new Panel();
+            btnRegister = new Button();
+            label2 = new Label();
+            txtConfirmPassword = new TextBox();
+            label4 = new Label();
+            txtDisplayName = new TextBox();
+            label11 = new Label();
+            txtPassword = new TextBox();
+            label10 = new Label();
+            txtUsername = new TextBox();
             label5 = new Label();
             label3 = new Label();
             label1 = new Label();
             panel1.SuspendLayout();
+            panel2.SuspendLayout();
             SuspendLayout();
             // 
             // panel1
             // 
+            panel1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             panel1.BackColor = Color.Teal;
-            panel1.Controls.Add(label7);
-            panel1.Controls.Add(label6);
+            panel1.Controls.Add(panel2);
             panel1.Controls.Add(label5);
             panel1.Controls.Add(label3);
             panel1.Controls.Add(label1);
             panel1.ForeColor = SystemColors.ControlLightLight;
             panel1.Location = new Point(35, 26);
             panel1.Name = "panel1";
-            panel1.Size = new Size(840, 468);
+            panel1.Size = new Size(1074, 551);
             panel1.TabIndex = 2;
             // 
-            // label7
+            // panel2
             // 
-            label7.AutoSize = true;
-            label7.Font = new Font("Segoe UI", 10F);
-            label7.Location = new Point(514, 434);
-            label7.Name = "label7";
-            label7.Size = new Size(72, 23);
-            label7.TabIndex = 6;
-            label7.Text = "Nhóm 1";
+            panel2.Anchor = AnchorStyles.None;
+            panel2.Controls.Add(btnRegister);
+            panel2.Controls.Add(label2);
+            panel2.Controls.Add(txtConfirmPassword);
+            panel2.Controls.Add(label4);
+            panel2.Controls.Add(txtDisplayName);
+            panel2.Controls.Add(label11);
+            panel2.Controls.Add(txtPassword);
+            panel2.Controls.Add(label10);
+            panel2.Controls.Add(txtUsername);
+            panel2.Location = new Point(165, 118);
+            panel2.Name = "panel2";
+            panel2.Size = new Size(756, 374);
+            panel2.TabIndex = 5;
+            panel2.Paint += panel2_Paint;
             // 
-            // label6
+            // btnRegister
             // 
-            label6.AutoSize = true;
-            label6.Font = new Font("Segoe UI", 12F);
-            label6.Location = new Point(584, 429);
-            label6.Name = "label6";
-            label6.Size = new Size(20, 28);
-            label6.TabIndex = 5;
-            label6.Text = "/";
+            btnRegister.Anchor = AnchorStyles.None;
+            btnRegister.Font = new Font("Segoe UI", 20F, FontStyle.Bold);
+            btnRegister.ForeColor = SystemColors.ControlText;
+            btnRegister.Location = new Point(220, 292);
+            btnRegister.Name = "btnRegister";
+            btnRegister.Size = new Size(359, 59);
+            btnRegister.TabIndex = 19;
+            btnRegister.Text = "Sign Up";
+            btnRegister.UseVisualStyleBackColor = true;
+            btnRegister.Click += button1_Click_1;
+            // 
+            // label2
+            // 
+            label2.AutoSize = true;
+            label2.Font = new Font("Segoe UI", 15F, FontStyle.Bold);
+            label2.ForeColor = Color.DarkGray;
+            label2.Location = new Point(32, 210);
+            label2.Name = "label2";
+            label2.Size = new Size(238, 35);
+            label2.TabIndex = 27;
+            label2.Text = "Xác nhận mật khẩu";
+            // 
+            // txtConfirmPassword
+            // 
+            txtConfirmPassword.Font = new Font("Segoe UI", 12F);
+            txtConfirmPassword.Location = new Point(286, 212);
+            txtConfirmPassword.Name = "txtConfirmPassword";
+            txtConfirmPassword.Size = new Size(306, 34);
+            txtConfirmPassword.TabIndex = 26;
+            // 
+            // label4
+            // 
+            label4.AutoSize = true;
+            label4.Font = new Font("Segoe UI", 15F, FontStyle.Bold);
+            label4.ForeColor = Color.DarkGray;
+            label4.Location = new Point(85, 83);
+            label4.Name = "label4";
+            label4.Size = new Size(189, 35);
+            label4.TabIndex = 25;
+            label4.Text = "Tên đăng nhập";
+            // 
+            // txtDisplayName
+            // 
+            txtDisplayName.Font = new Font("Segoe UI", 12F);
+            txtDisplayName.Location = new Point(286, 23);
+            txtDisplayName.Name = "txtDisplayName";
+            txtDisplayName.Size = new Size(306, 34);
+            txtDisplayName.TabIndex = 24;
+            // 
+            // label11
+            // 
+            label11.AutoSize = true;
+            label11.Font = new Font("Segoe UI", 15F, FontStyle.Bold);
+            label11.ForeColor = Color.DarkGray;
+            label11.Location = new Point(144, 147);
+            label11.Name = "label11";
+            label11.Size = new Size(126, 35);
+            label11.TabIndex = 23;
+            label11.Text = "Mật khẩu";
+            // 
+            // txtPassword
+            // 
+            txtPassword.Font = new Font("Segoe UI", 12F);
+            txtPassword.Location = new Point(286, 149);
+            txtPassword.Name = "txtPassword";
+            txtPassword.Size = new Size(306, 34);
+            txtPassword.TabIndex = 22;
+            txtPassword.TextChanged += txtPassword_TextChanged;
+            // 
+            // label10
+            // 
+            label10.AutoSize = true;
+            label10.Font = new Font("Segoe UI", 15F, FontStyle.Bold);
+            label10.ForeColor = Color.DarkGray;
+            label10.Location = new Point(141, 21);
+            label10.Name = "label10";
+            label10.Size = new Size(129, 35);
+            label10.TabIndex = 21;
+            label10.Text = "Họ và tên";
+            // 
+            // txtUsername
+            // 
+            txtUsername.Font = new Font("Segoe UI", 12F);
+            txtUsername.Location = new Point(286, 85);
+            txtUsername.Name = "txtUsername";
+            txtUsername.Size = new Size(306, 34);
+            txtUsername.TabIndex = 20;
             // 
             // label5
             // 
+            label5.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             label5.AutoSize = true;
             label5.Font = new Font("Segoe UI", 9F);
-            label5.Location = new Point(601, 437);
+            label5.Location = new Point(781, 520);
             label5.Name = "label5";
-            label5.Size = new Size(222, 20);
+            label5.Size = new Size(281, 20);
             label5.TabIndex = 4;
-            label5.Text = "NT106 - Lập trình mạng căn bản";
+            label5.Text = "Nhóm 1/NT106 - Lập trình mạng căn bản";
             // 
             // label3
             // 
+            label3.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             label3.AutoSize = true;
             label3.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
             label3.ForeColor = Color.Azure;
-            label3.Location = new Point(17, 425);
+            label3.Location = new Point(17, 508);
             label3.Name = "label3";
             label3.Size = new Size(108, 32);
             label3.TabIndex = 2;
@@ -94,10 +193,11 @@
             // 
             // label1
             // 
+            label1.Anchor = AnchorStyles.Top;
             label1.AutoSize = true;
             label1.Font = new Font("Segoe UI", 30F, FontStyle.Bold);
             label1.ForeColor = Color.Azure;
-            label1.Location = new Point(200, 12);
+            label1.Location = new Point(309, 24);
             label1.Name = "label1";
             label1.Size = new Size(457, 67);
             label1.TabIndex = 0;
@@ -107,22 +207,32 @@
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(908, 516);
+            ClientSize = new Size(1142, 599);
             Controls.Add(panel1);
             Name = "RegisterForm";
             Text = "RegisterForm";
             panel1.ResumeLayout(false);
             panel1.PerformLayout();
+            panel2.ResumeLayout(false);
+            panel2.PerformLayout();
             ResumeLayout(false);
         }
 
         #endregion
 
         private Panel panel1;
-        private Label label7;
-        private Label label6;
         private Label label5;
         private Label label3;
         private Label label1;
+        private Panel panel2;
+        private Button btnRegister;
+        private Label label2;
+        private TextBox txtConfirmPassword;
+        private Label label4;
+        private TextBox txtDisplayName;
+        private Label label11;
+        private TextBox txtPassword;
+        private Label label10;
+        private TextBox txtUsername;
     }
 }
