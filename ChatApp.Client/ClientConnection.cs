@@ -12,17 +12,15 @@ public class ClientConnection : IDisposable
     public async Task ConnectAsync(string host, int port)
     {
         Disconnect();
-        var tcpClient = new TcpClient();
+        TcpClient tcpClient = new TcpClient();
         _tcpClient = tcpClient;
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         try
         {
-            await tcpClient.ConnectAsync(host, port, timeout.Token);
+            await tcpClient.ConnectAsync(host, port);
         }
         catch
         {
-            tcpClient.Dispose();
-            _tcpClient = null;
+            Disconnect();
             throw;
         }
     }
