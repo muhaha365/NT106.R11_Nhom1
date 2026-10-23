@@ -82,7 +82,7 @@
             label7.Font = new Font("Segoe UI", 10F);
             label7.Location = new Point(29, 459);
             label7.Name = "label7";
-            label7.Size = new Size(72, 23);
+            label7.Size = new Size(59, 19);
             label7.TabIndex = 6;
             label7.Text = "Nhóm 1";
             // 
@@ -92,7 +92,7 @@
             label6.Font = new Font("Segoe UI", 12F);
             label6.Location = new Point(104, 458);
             label6.Name = "label6";
-            label6.Size = new Size(20, 28);
+            label6.Size = new Size(16, 21);
             label6.TabIndex = 5;
             label6.Text = "/";
             // 
@@ -102,7 +102,7 @@
             label5.Font = new Font("Segoe UI", 9F);
             label5.Location = new Point(122, 471);
             label5.Name = "label5";
-            label5.Size = new Size(222, 20);
+            label5.Size = new Size(177, 15);
             label5.TabIndex = 4;
             label5.Text = "NT106 - Lập trình mạng căn bản";
             // 
@@ -113,7 +113,7 @@
             label4.ForeColor = Color.Azure;
             label4.Location = new Point(20, 271);
             label4.Name = "label4";
-            label4.Size = new Size(159, 46);
+            label4.Size = new Size(129, 37);
             label4.TabIndex = 3;
             label4.Text = "Universe";
             // 
@@ -124,7 +124,7 @@
             label3.ForeColor = Color.Azure;
             label3.Location = new Point(16, 222);
             label3.Name = "label3";
-            label3.Size = new Size(275, 46);
+            label3.Size = new Size(221, 37);
             label3.TabIndex = 2;
             label3.Text = "Communication";
             // 
@@ -135,7 +135,7 @@
             label2.ForeColor = Color.Azure;
             label2.Location = new Point(20, 169);
             label2.Name = "label2";
-            label2.Size = new Size(163, 46);
+            label2.Size = new Size(134, 37);
             label2.TabIndex = 1;
             label2.Text = "Adaptive";
             // 
@@ -146,7 +146,7 @@
             label1.ForeColor = Color.Azure;
             label1.Location = new Point(54, 51);
             label1.Name = "label1";
-            label1.Size = new Size(241, 67);
+            label1.Size = new Size(191, 54);
             label1.TabIndex = 0;
             label1.Text = "NEXUS X";
             // 
@@ -154,7 +154,7 @@
             // 
             txtUsername.Location = new Point(583, 201);
             txtUsername.Name = "txtUsername";
-            txtUsername.Size = new Size(306, 27);
+            txtUsername.Size = new Size(306, 23);
             txtUsername.TabIndex = 2;
             // 
             // label8
@@ -164,7 +164,7 @@
             label8.ForeColor = Color.Black;
             label8.Location = new Point(478, 48);
             label8.Name = "label8";
-            label8.Size = new Size(388, 67);
+            label8.Size = new Size(310, 54);
             label8.TabIndex = 7;
             label8.Text = "Welcome Back!";
             // 
@@ -175,7 +175,7 @@
             label9.ForeColor = Color.DarkGray;
             label9.Location = new Point(573, 124);
             label9.Name = "label9";
-            label9.Size = new Size(316, 23);
+            label9.Size = new Size(253, 19);
             label9.TabIndex = 7;
             label9.Text = "Đăng nhập để gặp gỡ những người bạn";
             label9.TextAlign = ContentAlignment.TopRight;
@@ -187,7 +187,7 @@
             label10.ForeColor = Color.DarkGray;
             label10.Location = new Point(436, 202);
             label10.Name = "label10";
-            label10.Size = new Size(128, 23);
+            label10.Size = new Size(107, 19);
             label10.TabIndex = 8;
             label10.Text = "Tên đăng nhập";
             // 
@@ -198,7 +198,7 @@
             label11.ForeColor = Color.DarkGray;
             label11.Location = new Point(478, 269);
             label11.Name = "label11";
-            label11.Size = new Size(86, 23);
+            label11.Size = new Size(71, 19);
             label11.TabIndex = 10;
             label11.Text = "Mật khẩu";
             // 
@@ -206,7 +206,7 @@
             // 
             txtPassword.Location = new Point(583, 269);
             txtPassword.Name = "txtPassword";
-            txtPassword.Size = new Size(306, 27);
+            txtPassword.Size = new Size(306, 23);
             txtPassword.TabIndex = 9;
             // 
             // label12
@@ -216,7 +216,7 @@
             label12.ForeColor = Color.DarkGray;
             label12.Location = new Point(559, 427);
             label12.Name = "label12";
-            label12.Size = new Size(137, 20);
+            label12.Size = new Size(111, 15);
             label12.TabIndex = 11;
             label12.Text = "Chưa có tài khoản ?";
             label12.TextAlign = ContentAlignment.TopRight;
@@ -229,7 +229,7 @@
             label13.ForeColor = Color.DeepSkyBlue;
             label13.Location = new Point(694, 427);
             label13.Name = "label13";
-            label13.Size = new Size(83, 20);
+            label13.Size = new Size(64, 15);
             label13.TabIndex = 12;
             label13.Text = "Tạo tại đây";
             label13.TextAlign = ContentAlignment.TopRight;
@@ -237,7 +237,7 @@
             // 
             // LoginForm
             // 
-            AutoScaleDimensions = new SizeF(9F, 20F);
+            AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             AutoSizeMode = AutoSizeMode.GrowAndShrink;
             BackColor = Color.Honeydew;
