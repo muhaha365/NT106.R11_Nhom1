@@ -11,8 +11,8 @@ Console.CancelKeyPress += (_, e) =>
 Console.WriteLine("Nhấn Ctrl+C để dừng server");
 try
 {
-    var server = new ChatServer();
-    await server.RunAsync(5000, cancellation.Token);
+    ChatServer server = new ChatServer();
+    await server.Run(5000);
 }
 catch(SocketException ex)
 {
