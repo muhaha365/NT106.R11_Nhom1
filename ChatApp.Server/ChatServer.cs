@@ -9,26 +9,25 @@ namespace ChatApp.Server;
 /// </summary>
 public class ChatServer
 {
-    public async Task RunAsync(int port, CancellationToken cancellationToken)
+    public async Task Run(int port)
     {
-        var listener = new TcpListener(IPAddress.Loopback, port);
-        var clients = new List<ConnectedClient>();
+        TcpListener listener = new TcpListener(IPAddress.Loopback, port);
+        List<ConnectedClient> clients = new List<ConnectedClient>();
         try
         {
             listener.Start();
-            Console.WriteLine($"Server đang lắng nghe tại 127.0.0.1:{port}");
-            while(!cancellationToken.IsCancellationRequested)
+            Console.WriteLine($"Server đang chờ tại 127.0.0.1: {port}");
+            while (true)
             {
-                TcpClient tcpClient = await listener.AcceptTcpClientAsync(cancellationToken);
-                var client = new ConnectedClient(tcpClient);
+                TcpClient tcpClient = await listener.AcceptTcpClientAsync();
+                ConnectedClient client = new ConnectedClient(tcpClient);
                 clients.Add(client);
-                Console.WriteLine($"Đã nhận kết nối từ: {tcpClient.Client.RemoteEndPoint}");
+                Console.WriteLine($"Client {tcpClient.Client.RemoteEndPoint} đã kết nối.");
             }
         }
-        catch(OperationCanceledException)
-            when (cancellationToken.IsCancellationRequested)
+        catch (Exception ex)
         {
-
+            Console.WriteLine($"Lỗi: {ex.Message}");
         }
         finally
         {
@@ -37,9 +36,6 @@ public class ChatServer
             {
                 client.Dispose();
             }
-            Console.WriteLine("Server đã dừng");
         }
     }
-    // TODO: Dùng TcpListener; tạo ClientConnection cho từng kết nối.
-    // TODO: Hỗ trợ hủy tác vụ và đóng các kết nối khi server dừng.
 }
