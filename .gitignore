@@ -10,3 +10,4 @@ TestResults/
 !.env.example
 appsettings.Local.json
 **/uploads/
+/handoff

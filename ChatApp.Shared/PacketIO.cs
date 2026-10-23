@@ -1,12 +1,45 @@
+using System.Buffers.Binary;
+using System.Text.Json;
+
 namespace ChatApp.Shared;
 
-/// <summary>
-/// Đọc và ghi một gói hoàn chỉnh trên Stream.
-/// Khung lớp: chưa triển khai chức năng.
-/// </summary>
 public class PacketIO
 {
-    // TODO: 4 byte độ dài big-endian, theo sau là JSON UTF-8; đọc đủ từng phần.
-    // TODO: Kiểm tra kích thước trước khi cấp phát; ngắt kết nối giữa gói phải báo lỗi.
-    // TODO: Làm việc với Stream để có thể dùng NetworkStream hoặc SslStream về sau.
+    private readonly StreamReader _sr;
+    private readonly StreamWriter _sw;
+    private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
+
+    public PacketIO(Stream stream)
+    {
+        _sr = new StreamReader(stream);
+        _sw = new StreamWriter(stream);
+        _sw.AutoFlush = true;
+    }
+    public async Task SendPacketAsync(Packet packet)
+    {
+        string json = JsonSerializer.Serialize(packet);
+        await _sendLock.WaitAsync();
+        try
+        {
+            await _sw.WriteLineAsync(json);
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
+    }
+    public async Task<Packet?> ReceivePacketAsync()
+    {
+        string? json = await _sr.ReadLineAsync();
+        if (json == null)
+        {
+            return null;
+        }
+        Packet? packet = JsonSerializer.Deserialize<Packet>(json);
+        if(packet == null)
+        {
+            throw new InvalidDataException("Dữ liệu nhận được không hợp lệ.");
+        }
+        return packet;
+    }
 }

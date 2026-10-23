@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
+using ChatApp.Shared;
 using System.Text;
+using System.Text.Json;
 
 namespace ChatApp.Client.Forms
 {
@@ -47,6 +49,20 @@ namespace ChatApp.Client.Forms
 
                 string passwordHash = HashSHA256(password);
                 btn_connect.Text = "Đang xác thực...";
+
+                btn_connect.Text = "Đã kết nối TCP";
+
+                Packet packet = new Packet
+                {
+                    Type = "chat",
+                    Payload = JsonSerializer.SerializeToElement("Xin chào từ client!")
+                };
+
+                await _connection.SendAsync(packet);
+                await _connection.ReceiveAsync();
+
+                if (IsDisposed || Disposing) return;
+                MessageBox.Show(this, "Kết nối tới server đã đóng");
             }
 
             catch (Exception ex)
@@ -55,6 +71,14 @@ namespace ChatApp.Client.Forms
                 MessageBox.Show(this, $"Không kết nối được: {ex.Message}");
                 btn_connect.Enabled = true;
                 btn_connect.Text = "Sign In";
+            }
+            finally
+            {
+                if (!IsDisposed && !Disposing)
+                {
+                    btn_connect.Enabled = true;
+                    btn_connect.Text = "Sign In";
+                }
             }
         }
 
@@ -81,6 +105,12 @@ namespace ChatApp.Client.Forms
         private void label12_Click(object sender, EventArgs e)
         {
 
+        }
+
+        private void btn_demo_chat_Click(object sender, EventArgs e)
+        {
+            MainForm form = new MainForm();
+            form.Show();
         }
     }
 }
