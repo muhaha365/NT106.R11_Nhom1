@@ -70,7 +70,7 @@ public class ChatServer
                     Console.WriteLine($"Client {sender.Id} gửi gói chat không hợp lệ.");
                     continue;
                 }
-                string message = payload.GetString();
+                string message = payload.GetString()!;
                 if(string.IsNullOrWhiteSpace(message))
                 {
                     Console.WriteLine($"Client {sender.Id} gửi gói chat rỗng.");

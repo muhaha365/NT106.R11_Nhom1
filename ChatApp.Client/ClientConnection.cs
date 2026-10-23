@@ -35,7 +35,7 @@ public class ClientConnection : IDisposable
         {
             throw new InvalidOperationException("Chưa kết nối tới server.");
         }
-        return await _packetIO.ReceivePacketAsync();
+        return await _packetIO!.ReceivePacketAsync();
     }
     public async Task SendAsync(Packet packet)
     {
@@ -43,7 +43,7 @@ public class ClientConnection : IDisposable
         {
             return;
         }
-        await _packetIO.SendPacketAsync(packet);
+        await _packetIO!.SendPacketAsync(packet);
     }
     public void Disconnect()
     {
