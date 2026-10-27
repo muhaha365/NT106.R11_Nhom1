@@ -28,6 +28,10 @@ public sealed class CreateGroupDialog : Form
         AutoScaleDimensions = new SizeF(96F, 96F);
         Font = new Font("Segoe UI", 10);
         BackColor = UiTheme.Surface;
+        ForeColor = UiTheme.Ink;
+        groupFriendChoices.BorderStyle = BorderStyle.None;
+        groupFriendChoices.BackColor = Color.White;
+        groupNameBox.PlaceholderText = "Ví dụ: Nhóm đồ án NT106";
         StartPosition = FormStartPosition.CenterParent;
         MinimumSize = new Size(400, 420);
         Size = new Size(480, 560);

@@ -30,6 +30,7 @@ partial class MainForm
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
         Font = new Font("Segoe UI", 10F);
+        ForeColor = UiTheme.Ink;
         BackColor = UiTheme.Surface;
         ClientSize = new Size(1260, 790);
         MinimumSize = new Size(1050, 680);
@@ -39,17 +40,17 @@ partial class MainForm
 
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4, Padding = new Padding(0), Margin = new Padding(0) };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
         Controls.Add(root);
-        var header = new Panel { Dock = DockStyle.Fill, BackColor = UiTheme.Accent, Padding = new Padding(24, 10, 24, 10), Margin = new Padding(0) };
-        header.Controls.Add(new Label { Name = "headerSubtitle", Text = "Kết nối bạn bè · Trò chuyện cùng nhóm", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, AutoEllipsis = true, ForeColor = Color.White });
-        header.Controls.Add(new Label { Name = "brandLabel", Text = "NEXUS X", Dock = DockStyle.Left, Width = 230, Font = new Font("Segoe UI", 22F, FontStyle.Bold), ForeColor = Color.White, TextAlign = ContentAlignment.MiddleLeft });
+        var header = new Panel { Dock = DockStyle.Fill, BackColor = Color.White, Padding = new Padding(24, 8, 24, 8), Margin = new Padding(0) };
+        header.Controls.Add(new Label { Name = "headerSubtitle", Text = "Không gian trò chuyện của bạn", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, AutoEllipsis = true, ForeColor = UiTheme.Muted, Font = new Font("Segoe UI", 10) });
+        header.Controls.Add(new Label { Name = "brandLabel", Text = "nexus x", Dock = DockStyle.Left, Width = 200, Font = new Font("Segoe UI", 21F, FontStyle.Bold), ForeColor = UiTheme.Accent, TextAlign = ContentAlignment.MiddleLeft });
         root.Controls.Add(header, 0, 0);
 
-        var connection = new FlowLayoutPanel { Name = "connectionBar", Dock = DockStyle.Fill, AutoSize = true, WrapContents = true, Padding = new Padding(16, 10, 16, 10), Margin = new Padding(0), BackColor = Color.White };
+        var connection = new FlowLayoutPanel { Name = "connectionBar", Dock = DockStyle.Fill, AutoSize = true, WrapContents = true, Padding = new Padding(20, 6, 20, 6), Margin = new Padding(0), BackColor = UiTheme.Surface, Font = new Font("Segoe UI", 9) };
         connection.Controls.Add(new Label { Text = "Máy chủ", AutoSize = true, Margin = new Padding(0, 8, 8, 0) });
         txtHost = new TextBox { Name = "serverHostBox", Text = "127.0.0.1", Width = 145, AccessibleName = "Địa chỉ máy chủ", Margin = new Padding(0, 4, 12, 0) };
         connection.Controls.Add(txtHost);
@@ -68,10 +69,10 @@ partial class MainForm
         connection.Controls.Add(lblCurrentUser);
         root.Controls.Add(connection, 0, 1);
 
-        var workspace = new SplitContainer { Name = "workspaceSplit", Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel1, SplitterWidth = 6, Margin = new Padding(12), Size = new Size(1236, 590), SplitterDistance = 320, Panel1MinSize = 290, Panel2MinSize = 640 };
-        friendsHost = new Panel { Dock = DockStyle.Fill, BackColor = Color.White, Padding = new Padding(10) };
+        var workspace = new SplitContainer { Name = "workspaceSplit", Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel1, SplitterWidth = 10, Margin = new Padding(16, 6, 16, 4), Size = new Size(1228, 590), SplitterDistance = 310, Panel1MinSize = 280, Panel2MinSize = 640 };
+        friendsHost = new RoundedPanel { Dock = DockStyle.Fill, Padding = new Padding(12) };
         workspace.Panel1.Controls.Add(friendsHost);
-        var conversationTabs = new TabControl { Name = "conversationTabs", Dock = DockStyle.Fill };
+        var conversationTabs = new PageTabs { Name = "conversationTabs", Dock = DockStyle.Fill };
         var groupsTab = new TabPage("Chat nhóm") { BackColor = Color.White, Padding = new Padding(10), Name = "groupsTab" };
         groupsHost = new Panel { Dock = DockStyle.Fill };
         groupsTab.Controls.Add(groupsHost);
@@ -98,9 +99,9 @@ partial class MainForm
         demoTab.Controls.Add(demoLayout);
         conversationTabs.TabPages.Add(groupsTab);
         conversationTabs.TabPages.Add(demoTab);
-        workspace.Panel2.Controls.Add(conversationTabs);
+        workspace.Panel2.Controls.Add(UiTheme.CreateTabs(conversationTabs));
         root.Controls.Add(workspace, 0, 2);
-        lblStatus = new Label { Name = "mainStatus", Text = "Kết nối máy chủ để bắt đầu. Danh sách bạn bè và nhóm cần phiên đăng nhập.", Dock = DockStyle.Fill, AutoEllipsis = true, ForeColor = UiTheme.Muted, Padding = new Padding(16, 8, 16, 8), Margin = new Padding(0), AccessibleRole = AccessibleRole.StatusBar };
+        lblStatus = new Label { Name = "mainStatus", Text = "Kết nối máy chủ để bắt đầu. Danh sách bạn bè và nhóm cần phiên đăng nhập.", Dock = DockStyle.Fill, AutoEllipsis = true, ForeColor = UiTheme.Muted, Font = new Font("Segoe UI", 9), Padding = new Padding(20, 6, 20, 6), Margin = new Padding(0), AccessibleRole = AccessibleRole.StatusBar };
         root.Controls.Add(lblStatus, 0, 3);
         ResumeLayout(true);
     }
