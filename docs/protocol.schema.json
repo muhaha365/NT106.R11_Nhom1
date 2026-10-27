@@ -1,0 +1,965 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Chat App packet protocol version 1",
+  "description": "Legacy chat packets and proposed business contracts. This schema validates structure, not authentication, database rules or UTF-8 byte limits.",
+  "type": "object",
+  "properties": {
+    "Version": {"const": 1},
+    "Type": {
+      "enum": [
+        "chat",
+        "system.ping.request",
+        "auth.register.request",
+        "auth.login.request",
+        "auth.logout.request",
+        "user.search.request",
+        "presence.list.request",
+        "friend.list.request",
+        "friend.add.request",
+        "friend.respond.request",
+        "friend.remove.request",
+        "chat.send.request",
+        "chat.history.request",
+        "group.create.request",
+        "group.list.request",
+        "group.members.request",
+        "group.member.add.request",
+        "group.member.remove.request",
+        "system.ping.response",
+        "auth.register.response",
+        "auth.login.response",
+        "auth.logout.response",
+        "user.search.response",
+        "presence.list.response",
+        "friend.list.response",
+        "friend.add.response",
+        "friend.respond.response",
+        "friend.remove.response",
+        "chat.send.response",
+        "chat.history.response",
+        "group.create.response",
+        "group.list.response",
+        "group.members.response",
+        "group.member.add.response",
+        "group.member.remove.response",
+        "presence.changed.event",
+        "friend.changed.event",
+        "chat.message.event",
+        "group.changed.event",
+        "system.error.response"
+      ]
+    },
+    "RequestId": {"anyOf": [{"$ref": "#/$defs/requestId"}, {"type": "null"}]},
+    "Payload": {}
+  },
+  "required": ["Version", "Type", "RequestId", "Payload"],
+  "additionalProperties": false,
+  "$defs": {
+    "requestId": {"type": "string", "format": "uuid"},
+    "user": {
+      "type": "object",
+      "properties": {
+        "Id": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+        "Username": {"type": "string", "pattern": "^[a-zA-Z0-9_]{3,50}$"},
+        "DisplayName": {"type": "string", "minLength": 1, "maxLength": 100, "pattern": "\\S"},
+        "IsOnline": {"type": "boolean"}
+      },
+      "required": ["Id", "Username", "DisplayName", "IsOnline"],
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "Code": {
+          "enum": [
+            "INVALID_REQUEST",
+            "UNSUPPORTED_VERSION",
+            "UNKNOWN_TYPE",
+            "NOT_AUTHENTICATED",
+            "ALREADY_AUTHENTICATED",
+            "INVALID_CREDENTIALS",
+            "USERNAME_TAKEN",
+            "ALREADY_ONLINE",
+            "NOT_FOUND",
+            "FORBIDDEN",
+            "NOT_FRIENDS",
+            "FRIEND_REQUEST_EXISTS",
+            "INCOMING_REQUEST_EXISTS",
+            "ALREADY_FRIENDS",
+            "ALREADY_MEMBER",
+            "NOT_MEMBER",
+            "GROUP_FULL",
+            "INTERNAL_ERROR"
+          ]
+        },
+        "Message": {"type": "string", "minLength": 1, "maxLength": 300}
+      },
+      "required": ["Code", "Message"],
+      "additionalProperties": false
+    },
+    "friendship": {
+      "type": "object",
+      "properties": {
+        "UserInvite": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+        "UserReceive": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+        "Status": {"enum": ["Pending", "Accepted"]},
+        "CreatedAt": {"type": "string", "format": "date-time", "pattern": "Z$"}
+      },
+      "required": ["UserInvite", "UserReceive", "Status", "CreatedAt"],
+      "additionalProperties": false
+    },
+    "group": {
+      "type": "object",
+      "properties": {
+        "Id": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+        "GroupName": {"type": "string", "minLength": 1, "maxLength": 100, "pattern": "\\S"},
+        "CreatedBy": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+        "CreatedAt": {"type": "string", "format": "date-time", "pattern": "Z$"}
+      },
+      "required": ["Id", "GroupName", "CreatedBy", "CreatedAt"],
+      "additionalProperties": false
+    },
+    "message": {
+      "type": "object",
+      "properties": {
+        "Id": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+        "SenderId": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+        "ReceiverId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]},
+        "GroupId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]},
+        "Content": {"type": "string", "minLength": 1, "maxLength": 2000, "pattern": "\\S"},
+        "SendTime": {"type": "string", "format": "date-time", "pattern": "Z$"}
+      },
+      "required": ["Id", "SenderId", "ReceiverId", "GroupId", "Content", "SendTime"],
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {"ReceiverId": {"type": "integer", "minimum": 1, "maximum": 2147483647}, "GroupId": {"type": "null"}}
+        },
+        {
+          "properties": {"ReceiverId": {"type": "null"}, "GroupId": {"type": "integer", "minimum": 1, "maximum": 2147483647}}
+        }
+      ]
+    },
+    "friendEntry": {
+      "type": "object",
+      "properties": {"User": {"$ref": "#/$defs/user"}, "Friendship": {"$ref": "#/$defs/friendship"}},
+      "required": ["User", "Friendship"],
+      "additionalProperties": false
+    },
+    "outcome": {
+      "type": "object",
+      "properties": {
+        "Success": {"type": "boolean"},
+        "Data": {"anyOf": [{"type": "object"}, {"type": "null"}]},
+        "Error": {"anyOf": [{"$ref": "#/$defs/error"}, {"type": "null"}]}
+      },
+      "required": ["Success", "Data", "Error"],
+      "additionalProperties": false,
+      "oneOf": [
+        {"properties": {"Success": {"const": true}, "Data": {"type": "object"}, "Error": {"type": "null"}}},
+        {"properties": {"Success": {"const": false}, "Data": {"type": "null"}, "Error": {"$ref": "#/$defs/error"}}}
+      ]
+    },
+    "system.ping.request.payload": {"type": "object", "properties": {}, "required": [], "additionalProperties": false},
+    "auth.register.request.payload": {
+      "type": "object",
+      "properties": {
+        "Username": {"type": "string", "pattern": "^[a-zA-Z0-9_]{3,50}$"},
+        "Password": {"type": "string", "minLength": 8, "maxLength": 128},
+        "DisplayName": {"type": "string", "minLength": 1, "maxLength": 100, "pattern": "\\S"}
+      },
+      "required": ["Username", "Password", "DisplayName"],
+      "additionalProperties": false
+    },
+    "auth.login.request.payload": {
+      "type": "object",
+      "properties": {
+        "Username": {"type": "string", "pattern": "^[a-zA-Z0-9_]{3,50}$"},
+        "Password": {"type": "string", "minLength": 8, "maxLength": 128}
+      },
+      "required": ["Username", "Password"],
+      "additionalProperties": false
+    },
+    "auth.logout.request.payload": {"type": "object", "properties": {}, "required": [], "additionalProperties": false},
+    "user.search.request.payload": {
+      "type": "object",
+      "properties": {
+        "Query": {"type": "string", "minLength": 1, "maxLength": 50, "pattern": "\\S"},
+        "Limit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "AfterId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]}
+      },
+      "required": ["Query", "Limit", "AfterId"],
+      "additionalProperties": false
+    },
+    "presence.list.request.payload": {
+      "type": "object",
+      "properties": {
+        "Limit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "AfterId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]}
+      },
+      "required": ["Limit", "AfterId"],
+      "additionalProperties": false
+    },
+    "friend.list.request.payload": {
+      "type": "object",
+      "properties": {
+        "Status": {"enum": ["Pending", "Accepted"]},
+        "Limit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "AfterId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]}
+      },
+      "required": ["Status", "Limit", "AfterId"],
+      "additionalProperties": false
+    },
+    "friend.add.request.payload": {
+      "type": "object",
+      "properties": {"UserId": {"type": "integer", "minimum": 1, "maximum": 2147483647}},
+      "required": ["UserId"],
+      "additionalProperties": false
+    },
+    "friend.respond.request.payload": {
+      "type": "object",
+      "properties": {"UserId": {"type": "integer", "minimum": 1, "maximum": 2147483647}, "Accept": {"type": "boolean"}},
+      "required": ["UserId", "Accept"],
+      "additionalProperties": false
+    },
+    "friend.remove.request.payload": {
+      "type": "object",
+      "properties": {"UserId": {"type": "integer", "minimum": 1, "maximum": 2147483647}},
+      "required": ["UserId"],
+      "additionalProperties": false
+    },
+    "chat.send.request.payload": {
+      "type": "object",
+      "properties": {
+        "ReceiverId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]},
+        "GroupId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]},
+        "Content": {"type": "string", "minLength": 1, "maxLength": 2000, "pattern": "\\S"}
+      },
+      "required": ["ReceiverId", "GroupId", "Content"],
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {"ReceiverId": {"type": "integer", "minimum": 1, "maximum": 2147483647}, "GroupId": {"type": "null"}}
+        },
+        {
+          "properties": {"ReceiverId": {"type": "null"}, "GroupId": {"type": "integer", "minimum": 1, "maximum": 2147483647}}
+        }
+      ]
+    },
+    "chat.history.request.payload": {
+      "type": "object",
+      "properties": {
+        "PeerId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]},
+        "GroupId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]},
+        "BeforeId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]},
+        "Limit": {"type": "integer", "minimum": 1, "maximum": 10}
+      },
+      "required": ["PeerId", "GroupId", "BeforeId", "Limit"],
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {"PeerId": {"type": "integer", "minimum": 1, "maximum": 2147483647}, "GroupId": {"type": "null"}}
+        },
+        {
+          "properties": {"PeerId": {"type": "null"}, "GroupId": {"type": "integer", "minimum": 1, "maximum": 2147483647}}
+        }
+      ]
+    },
+    "group.create.request.payload": {
+      "type": "object",
+      "properties": {
+        "GroupName": {"type": "string", "minLength": 1, "maxLength": 100, "pattern": "\\S"},
+        "MemberIds": {
+          "type": "array",
+          "items": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+          "maxItems": 19,
+          "uniqueItems": true
+        }
+      },
+      "required": ["GroupName", "MemberIds"],
+      "additionalProperties": false
+    },
+    "group.list.request.payload": {
+      "type": "object",
+      "properties": {
+        "Limit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "AfterId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]}
+      },
+      "required": ["Limit", "AfterId"],
+      "additionalProperties": false
+    },
+    "group.members.request.payload": {
+      "type": "object",
+      "properties": {
+        "GroupId": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+        "Limit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "AfterId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]}
+      },
+      "required": ["GroupId", "Limit", "AfterId"],
+      "additionalProperties": false
+    },
+    "group.member.add.request.payload": {
+      "type": "object",
+      "properties": {
+        "GroupId": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+        "UserId": {"type": "integer", "minimum": 1, "maximum": 2147483647}
+      },
+      "required": ["GroupId", "UserId"],
+      "additionalProperties": false
+    },
+    "group.member.remove.request.payload": {
+      "type": "object",
+      "properties": {
+        "GroupId": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+        "UserId": {"type": "integer", "minimum": 1, "maximum": 2147483647}
+      },
+      "required": ["GroupId", "UserId"],
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"Type": {"const": "chat"}}},
+      "then": {
+        "properties": {"Payload": {"type": "string", "minLength": 1, "pattern": "\\S"}, "RequestId": {"type": "null"}}
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "system.ping.request"}}},
+      "then": {
+        "properties": {"Payload": {"$ref": "#/$defs/system.ping.request.payload"}, "RequestId": {"$ref": "#/$defs/requestId"}}
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "system.ping.response"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "allOf": [
+              {"$ref": "#/$defs/outcome"},
+              {
+                "if": {"properties": {"Success": {"const": true}}},
+                "then": {
+                  "properties": {"Data": {"type": "object", "properties": {}, "required": [], "additionalProperties": false}}
+                }
+              }
+            ]
+          },
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "auth.register.request"}}},
+      "then": {
+        "properties": {"Payload": {"$ref": "#/$defs/auth.register.request.payload"}, "RequestId": {"$ref": "#/$defs/requestId"}}
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "auth.register.response"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "allOf": [
+              {"$ref": "#/$defs/outcome"},
+              {
+                "if": {"properties": {"Success": {"const": true}}},
+                "then": {
+                  "properties": {
+                    "Data": {
+                      "type": "object",
+                      "properties": {"User": {"$ref": "#/$defs/user"}},
+                      "required": ["User"],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "auth.login.request"}}},
+      "then": {
+        "properties": {"Payload": {"$ref": "#/$defs/auth.login.request.payload"}, "RequestId": {"$ref": "#/$defs/requestId"}}
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "auth.login.response"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "allOf": [
+              {"$ref": "#/$defs/outcome"},
+              {
+                "if": {"properties": {"Success": {"const": true}}},
+                "then": {
+                  "properties": {
+                    "Data": {
+                      "type": "object",
+                      "properties": {"User": {"$ref": "#/$defs/user"}},
+                      "required": ["User"],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "auth.logout.request"}}},
+      "then": {
+        "properties": {"Payload": {"$ref": "#/$defs/auth.logout.request.payload"}, "RequestId": {"$ref": "#/$defs/requestId"}}
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "auth.logout.response"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "allOf": [
+              {"$ref": "#/$defs/outcome"},
+              {
+                "if": {"properties": {"Success": {"const": true}}},
+                "then": {
+                  "properties": {"Data": {"type": "object", "properties": {}, "required": [], "additionalProperties": false}}
+                }
+              }
+            ]
+          },
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "user.search.request"}}},
+      "then": {
+        "properties": {"Payload": {"$ref": "#/$defs/user.search.request.payload"}, "RequestId": {"$ref": "#/$defs/requestId"}}
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "user.search.response"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "allOf": [
+              {"$ref": "#/$defs/outcome"},
+              {
+                "if": {"properties": {"Success": {"const": true}}},
+                "then": {
+                  "properties": {
+                    "Data": {
+                      "type": "object",
+                      "properties": {
+                        "Items": {"type": "array", "items": {"$ref": "#/$defs/user"}, "maxItems": 50},
+                        "NextAfterId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]}
+                      },
+                      "required": ["Items", "NextAfterId"],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "presence.list.request"}}},
+      "then": {
+        "properties": {"Payload": {"$ref": "#/$defs/presence.list.request.payload"}, "RequestId": {"$ref": "#/$defs/requestId"}}
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "presence.list.response"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "allOf": [
+              {"$ref": "#/$defs/outcome"},
+              {
+                "if": {"properties": {"Success": {"const": true}}},
+                "then": {
+                  "properties": {
+                    "Data": {
+                      "type": "object",
+                      "properties": {
+                        "Items": {"type": "array", "items": {"$ref": "#/$defs/user"}, "maxItems": 50},
+                        "NextAfterId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]}
+                      },
+                      "required": ["Items", "NextAfterId"],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "friend.list.request"}}},
+      "then": {
+        "properties": {"Payload": {"$ref": "#/$defs/friend.list.request.payload"}, "RequestId": {"$ref": "#/$defs/requestId"}}
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "friend.list.response"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "allOf": [
+              {"$ref": "#/$defs/outcome"},
+              {
+                "if": {"properties": {"Success": {"const": true}}},
+                "then": {
+                  "properties": {
+                    "Data": {
+                      "type": "object",
+                      "properties": {
+                        "Items": {"type": "array", "items": {"$ref": "#/$defs/friendEntry"}, "maxItems": 50},
+                        "NextAfterId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]}
+                      },
+                      "required": ["Items", "NextAfterId"],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "friend.add.request"}}},
+      "then": {
+        "properties": {"Payload": {"$ref": "#/$defs/friend.add.request.payload"}, "RequestId": {"$ref": "#/$defs/requestId"}}
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "friend.add.response"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "allOf": [
+              {"$ref": "#/$defs/outcome"},
+              {
+                "if": {"properties": {"Success": {"const": true}}},
+                "then": {
+                  "properties": {
+                    "Data": {
+                      "type": "object",
+                      "properties": {"Friendship": {"$ref": "#/$defs/friendship"}},
+                      "required": ["Friendship"],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "friend.respond.request"}}},
+      "then": {
+        "properties": {"Payload": {"$ref": "#/$defs/friend.respond.request.payload"}, "RequestId": {"$ref": "#/$defs/requestId"}}
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "friend.respond.response"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "allOf": [
+              {"$ref": "#/$defs/outcome"},
+              {
+                "if": {"properties": {"Success": {"const": true}}},
+                "then": {
+                  "properties": {
+                    "Data": {
+                      "type": "object",
+                      "properties": {"Friendship": {"anyOf": [{"$ref": "#/$defs/friendship"}, {"type": "null"}]}},
+                      "required": ["Friendship"],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "friend.remove.request"}}},
+      "then": {
+        "properties": {"Payload": {"$ref": "#/$defs/friend.remove.request.payload"}, "RequestId": {"$ref": "#/$defs/requestId"}}
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "friend.remove.response"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "allOf": [
+              {"$ref": "#/$defs/outcome"},
+              {
+                "if": {"properties": {"Success": {"const": true}}},
+                "then": {
+                  "properties": {
+                    "Data": {
+                      "type": "object",
+                      "properties": {"UserId": {"type": "integer", "minimum": 1, "maximum": 2147483647}},
+                      "required": ["UserId"],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "chat.send.request"}}},
+      "then": {
+        "properties": {"Payload": {"$ref": "#/$defs/chat.send.request.payload"}, "RequestId": {"$ref": "#/$defs/requestId"}}
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "chat.send.response"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "allOf": [
+              {"$ref": "#/$defs/outcome"},
+              {
+                "if": {"properties": {"Success": {"const": true}}},
+                "then": {
+                  "properties": {
+                    "Data": {
+                      "type": "object",
+                      "properties": {"Message": {"$ref": "#/$defs/message"}},
+                      "required": ["Message"],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "chat.history.request"}}},
+      "then": {
+        "properties": {"Payload": {"$ref": "#/$defs/chat.history.request.payload"}, "RequestId": {"$ref": "#/$defs/requestId"}}
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "chat.history.response"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "allOf": [
+              {"$ref": "#/$defs/outcome"},
+              {
+                "if": {"properties": {"Success": {"const": true}}},
+                "then": {
+                  "properties": {
+                    "Data": {
+                      "type": "object",
+                      "properties": {
+                        "Items": {"type": "array", "items": {"$ref": "#/$defs/message"}, "maxItems": 10},
+                        "NextBeforeId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]}
+                      },
+                      "required": ["Items", "NextBeforeId"],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "group.create.request"}}},
+      "then": {
+        "properties": {"Payload": {"$ref": "#/$defs/group.create.request.payload"}, "RequestId": {"$ref": "#/$defs/requestId"}}
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "group.create.response"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "allOf": [
+              {"$ref": "#/$defs/outcome"},
+              {
+                "if": {"properties": {"Success": {"const": true}}},
+                "then": {
+                  "properties": {
+                    "Data": {
+                      "type": "object",
+                      "properties": {"Group": {"$ref": "#/$defs/group"}},
+                      "required": ["Group"],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "group.list.request"}}},
+      "then": {
+        "properties": {"Payload": {"$ref": "#/$defs/group.list.request.payload"}, "RequestId": {"$ref": "#/$defs/requestId"}}
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "group.list.response"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "allOf": [
+              {"$ref": "#/$defs/outcome"},
+              {
+                "if": {"properties": {"Success": {"const": true}}},
+                "then": {
+                  "properties": {
+                    "Data": {
+                      "type": "object",
+                      "properties": {
+                        "Items": {"type": "array", "items": {"$ref": "#/$defs/group"}, "maxItems": 50},
+                        "NextAfterId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]}
+                      },
+                      "required": ["Items", "NextAfterId"],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "group.members.request"}}},
+      "then": {
+        "properties": {"Payload": {"$ref": "#/$defs/group.members.request.payload"}, "RequestId": {"$ref": "#/$defs/requestId"}}
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "group.members.response"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "allOf": [
+              {"$ref": "#/$defs/outcome"},
+              {
+                "if": {"properties": {"Success": {"const": true}}},
+                "then": {
+                  "properties": {
+                    "Data": {
+                      "type": "object",
+                      "properties": {
+                        "Items": {"type": "array", "items": {"$ref": "#/$defs/user"}, "maxItems": 50},
+                        "NextAfterId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]}
+                      },
+                      "required": ["Items", "NextAfterId"],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "group.member.add.request"}}},
+      "then": {
+        "properties": {
+          "Payload": {"$ref": "#/$defs/group.member.add.request.payload"},
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "group.member.add.response"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "allOf": [
+              {"$ref": "#/$defs/outcome"},
+              {
+                "if": {"properties": {"Success": {"const": true}}},
+                "then": {
+                  "properties": {
+                    "Data": {
+                      "type": "object",
+                      "properties": {
+                        "GroupId": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+                        "UserId": {"type": "integer", "minimum": 1, "maximum": 2147483647}
+                      },
+                      "required": ["GroupId", "UserId"],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "group.member.remove.request"}}},
+      "then": {
+        "properties": {
+          "Payload": {"$ref": "#/$defs/group.member.remove.request.payload"},
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "group.member.remove.response"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "allOf": [
+              {"$ref": "#/$defs/outcome"},
+              {
+                "if": {"properties": {"Success": {"const": true}}},
+                "then": {
+                  "properties": {
+                    "Data": {
+                      "type": "object",
+                      "properties": {
+                        "GroupId": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+                        "UserId": {"type": "integer", "minimum": 1, "maximum": 2147483647}
+                      },
+                      "required": ["GroupId", "UserId"],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "RequestId": {"$ref": "#/$defs/requestId"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "presence.changed.event"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "type": "object",
+            "properties": {"UserId": {"type": "integer", "minimum": 1, "maximum": 2147483647}, "IsOnline": {"type": "boolean"}},
+            "required": ["UserId", "IsOnline"],
+            "additionalProperties": false
+          },
+          "RequestId": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "friend.changed.event"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "type": "object",
+            "properties": {
+              "UserId": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+              "Friendship": {"anyOf": [{"$ref": "#/$defs/friendship"}, {"type": "null"}]}
+            },
+            "required": ["UserId", "Friendship"],
+            "additionalProperties": false
+          },
+          "RequestId": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "chat.message.event"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "type": "object",
+            "properties": {"Message": {"$ref": "#/$defs/message"}},
+            "required": ["Message"],
+            "additionalProperties": false
+          },
+          "RequestId": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "group.changed.event"}}},
+      "then": {
+        "properties": {
+          "Payload": {
+            "type": "object",
+            "properties": {
+              "GroupId": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+              "Action": {"enum": ["created", "member_added", "member_removed"]},
+              "UserId": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": 2147483647}, {"type": "null"}]},
+              "Group": {"$ref": "#/$defs/group"}
+            },
+            "required": ["GroupId", "Action", "UserId", "Group"],
+            "additionalProperties": false,
+            "oneOf": [
+              {"properties": {"Action": {"const": "created"}, "UserId": {"type": "null"}}},
+              {
+                "properties": {
+                  "Action": {"enum": ["member_added", "member_removed"]},
+                  "UserId": {"type": "integer", "minimum": 1, "maximum": 2147483647}
+                }
+              }
+            ]
+          },
+          "RequestId": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"Type": {"const": "system.error.response"}}},
+      "then": {"properties": {"Payload": {"$ref": "#/$defs/error"}, "RequestId": {"$ref": "#/$defs/requestId"}}}
+    }
+  ]
+}
