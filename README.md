@@ -1,30 +1,30 @@
 ChatApp.Nhom1 — khung đồ án nhắn tin WinForms, C# / .NET 10.
 
-Mở `ChatApp.Nhom1.slnx` bằng Visual Studio 2026 có workload .NET desktop development. Solution gồm ba project:
+Mở `ChatApp.Nhom1.slnx` bằng Visual Studio 2026 có workload .NET desktop development. Solution gồm ba project ứng dụng và project kiểm tra ChatApp.Checks:
 
 | Project | Framework | Vai trò |
 |---|---|---|
-| ChatApp.Client | net10.0-windows | Giao diện WinForms, sau này kết nối tới server |
-| ChatApp.Server | net10.0 | Console server, sau này xử lý TCP và database |
-| ChatApp.Shared | net10.0 | DTO, cấu hình mặc định và quy ước giao tiếp dùng chung |
+| ChatApp.Client | net10.0-windows | WinForms, UI bạn bè/nhóm và client giao tiếp theo protocol |
+| ChatApp.Server | net10.0 | Console server TCP, hiện hỗ trợ chat broadcast demo |
+| ChatApp.Shared | net10.0 | DTO, Packet và quy ước giao tiếp dùng chung |
 
 Client và Server đều tham chiếu Shared. Shared không tham chiếu ngược lại.
 
 Tình trạng hiện tại:
 
-- Solution chứa đủ ba project và có thể build cùng nhau.
-- Client mở LoginForm. Bốn form và hai UserControl vẫn là giao diện trống để nhóm thiết kế tiếp.
-- Server in thông tin khung và chờ Enter. Chưa lắng nghe cổng TCP.
-- Đã có DTO đăng nhập/đăng ký, trạng thái client trong bộ nhớ, cấu trúc Packet và tên một số loại gói.
-- Các class Networking, Services, Repositories, PasswordService, PacketSerializer và FrameCodec mới chứa mô tả/TODO.
-- Chưa có xác thực, chat, database, TLS, truyền tệp hay lưu phiên hoạt động. Không có nút đăng nhập giả hoặc kết quả nghiệp vụ giả.
+- Các project ứng dụng và project kiểm tra có thể build cùng solution.
+- Client mở LoginForm. Chọn **Demo chat** để mở MainForm có UI bạn bè, lời mời, tìm người, nhóm và thành viên.
+- ProtocolClient quản lý một vòng nhận chung, ghép response theo RequestId, phát event và xử lý timeout/mất kết nối.
+- Server lắng nghe 127.0.0.1:5000, chuyển tiếp gói `chat` tới các client khác. Tab **Chat chung (demo)** giữ tương thích với luồng này.
+- UI bạn bè/nhóm đã nối request/response/event theo protocol; các nút nghiệp vụ chỉ mở khi nhận kết nối và UserSummary từ login thật.
+- Xác thực, nghiệp vụ bạn bè/nhóm, database, TLS và lưu phiên phía server chưa được triển khai. Giao diện không tự tạo tài khoản hoặc dữ liệu người dùng giả.
 
 Chạy bằng Visual Studio:
 
 1. Mở solution. Nếu solution đang mở từ trước, chấp nhận Reload khi Visual Studio thông báo file thay đổi trên ổ đĩa.
 2. Chọn Build → Build Solution (Ctrl + Shift + B).
 3. Chuột phải ChatApp.Client → Set as Startup Project → F5 để mở LoginForm.
-4. Dừng chạy. Đặt ChatApp.Server làm startup project → F5 để kiểm tra Console.
+4. Chạy ChatApp.Server trong một Terminal riêng; mở Client, chọn Demo chat và Kết nối để thử tab Chat chung (demo).
 5. Shared là thư viện, không đặt làm startup project.
 
 Chạy từ Terminal tại thư mục solution:
@@ -35,18 +35,24 @@ dotnet run --project .\ChatApp.Server\ChatApp.Server.csproj
 dotnet run --project .\ChatApp.Client\ChatApp.Client.csproj
 ```
 
-Lệnh chạy Server chờ Enter. Dùng Terminal khác nếu muốn chạy Client cùng lúc. Việc hai chương trình mở được hiện chỉ kiểm tra khung, chưa kiểm tra kết nối.
+Server dùng Ctrl+C để dừng. Có thể mở nhiều Client để thử gửi/nhận chat chung. Bạn bè và chat nhóm cần handler/auth phía server trước khi sử dụng với dữ liệu thật.
 
 Đọc tiếp:
 
-- [Hướng dẫn tiếp tục trong Visual Studio](docs/getting-started.md)
-- [Cấu trúc và nhiệm vụ các class](docs/architecture.md)
+- [Cách mở UI bạn bè và nhóm, điểm ghép login/server](docs/friends-and-groups.md)
 - [Đặc tả protocol JSON và các gói mẫu](docs/protocol.md)
-- [Các tình huống kiểm thử](docs/test-cases.md)
 - [Tích hợp database](database/README.md)
 
-Cấu hình mặc định nằm ở `ChatApp.Shared/Configuration/NetworkDefaults.cs`: host 127.0.0.1, port 5000. Khi triển khai LAN, client cần IP của máy server; server cần địa chỉ lắng nghe phù hợp. Cấu hình này chưa mở cổng và chưa thiết lập firewall.
+MainForm cho nhập máy chủ/cổng, mặc định 127.0.0.1:5000. Server hiện chỉ lắng nghe loopback trên cùng máy. Khi triển khai LAN cần đổi địa chỉ lắng nghe phù hợp và cấu hình firewall.
+
+Kiểm tra client/UI trên Windows, không cần test framework hoặc package bên ngoài:
+
+```powershell
+dotnet run --project .\tests\ChatApp.Checks\ChatApp.Checks.csproj
+```
+
+Các kiểm tra dùng TCP fixture riêng và form ẩn, không thay thế server nghiệp vụ. Đọc hướng dẫn UI để xuất ảnh kiểm tra hoặc đối chiếu request.
 
 Trước khi làm theo timeline, nhóm cần đối chiếu phạm vi với giảng viên: username/password chưa bao phủ Email/SĐT/Google; file/ảnh/video và thông báo khi ứng dụng đóng cũng chưa được thực hiện.
 
-Không commit .vs, bin, obj, mật khẩu, token hoặc tệp người dùng tải lên. Giữ các file .Designer.cs và .resx trong Git. .gitignore đã có sẵn; chưa khởi tạo hoặc liên kết remote Git.
+Không commit .vs, bin, obj, mật khẩu, token, ảnh kiểm tra hoặc tệp người dùng tải lên. Giữ các file .Designer.cs và .resx trong Git.
