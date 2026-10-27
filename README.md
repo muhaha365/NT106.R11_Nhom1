@@ -41,7 +41,7 @@ Lệnh chạy Server chờ Enter. Dùng Terminal khác nếu muốn chạy Clien
 
 - [Hướng dẫn tiếp tục trong Visual Studio](docs/getting-started.md)
 - [Cấu trúc và nhiệm vụ các class](docs/architecture.md)
-- [Quy ước giao tiếp dự kiến](docs/protocol.md)
+- [Đặc tả protocol JSON và các gói mẫu](docs/protocol.md)
 - [Các tình huống kiểm thử](docs/test-cases.md)
 - [Tích hợp database](database/README.md)
 

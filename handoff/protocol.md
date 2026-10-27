@@ -1,3 +1,5 @@
+> Bản ghi cũ trước khi triển khai PacketIO. Hợp đồng hiện tại và các gói mẫu nằm trong [docs/protocol.md](../docs/protocol.md). Phần bên dưới giữ lại để tham khảo lịch sử thiết kế.
+
 Quy ước protocol phiên bản 1 cho nhóm thống nhất trước khi triển khai TCP. PacketSerializer, FrameCodec và RequestDispatcher hiện mới là class khung; tài liệu này chưa phải các hành vi đã được thực thi.
 
 Dữ liệu gói là JSON mã hóa UTF-8, tên thuộc tính camelCase.

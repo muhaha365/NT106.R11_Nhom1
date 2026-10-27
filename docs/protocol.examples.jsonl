@@ -1,0 +1,45 @@
+{"Version":1,"Type":"chat","RequestId":null,"Payload":"Xin chào từ client"}
+{"Version":1,"Type":"chat","RequestId":null,"Payload":"Client 0 gửi: Xin chào từ client"}
+{"Version":1,"Type":"system.ping.request","RequestId":"b91f6590-9176-53fb-92d7-55b2f6f7537b","Payload":{}}
+{"Version":1,"Type":"system.ping.response","RequestId":"b91f6590-9176-53fb-92d7-55b2f6f7537b","Payload":{"Success":true,"Data":{},"Error":null}}
+{"Version":1,"Type":"auth.register.request","RequestId":"e7de548d-b9e5-56f9-a354-0ef77d7939d2","Payload":{"Username":"leanh","Password":"demo-only-password","DisplayName":"Lê Anh"}}
+{"Version":1,"Type":"auth.register.response","RequestId":"e7de548d-b9e5-56f9-a354-0ef77d7939d2","Payload":{"Success":true,"Data":{"User":{"Id":1,"Username":"leanh","DisplayName":"Lê Anh","IsOnline":false}},"Error":null}}
+{"Version":1,"Type":"auth.login.request","RequestId":"fc22cd69-4d5c-503a-9901-3465ed4186ff","Payload":{"Username":"leanh","Password":"demo-only-password"}}
+{"Version":1,"Type":"auth.login.response","RequestId":"fc22cd69-4d5c-503a-9901-3465ed4186ff","Payload":{"Success":true,"Data":{"User":{"Id":1,"Username":"leanh","DisplayName":"Lê Anh","IsOnline":true}},"Error":null}}
+{"Version":1,"Type":"auth.logout.request","RequestId":"c08a87a3-6b39-573b-bdec-dfbaf36f3c7f","Payload":{}}
+{"Version":1,"Type":"auth.logout.response","RequestId":"c08a87a3-6b39-573b-bdec-dfbaf36f3c7f","Payload":{"Success":true,"Data":{},"Error":null}}
+{"Version":1,"Type":"user.search.request","RequestId":"ef58fd35-058e-5050-b0aa-8f175eeeca14","Payload":{"Query":"chuong","Limit":20,"AfterId":null}}
+{"Version":1,"Type":"user.search.response","RequestId":"ef58fd35-058e-5050-b0aa-8f175eeeca14","Payload":{"Success":true,"Data":{"Items":[{"Id":2,"Username":"baochuong","DisplayName":"Bảo Chương","IsOnline":true}],"NextAfterId":null},"Error":null}}
+{"Version":1,"Type":"presence.list.request","RequestId":"0d948c73-874a-5c94-ab04-bf00c3ccd912","Payload":{"Limit":20,"AfterId":null}}
+{"Version":1,"Type":"presence.list.response","RequestId":"0d948c73-874a-5c94-ab04-bf00c3ccd912","Payload":{"Success":true,"Data":{"Items":[{"Id":2,"Username":"baochuong","DisplayName":"Bảo Chương","IsOnline":true}],"NextAfterId":null},"Error":null}}
+{"Version":1,"Type":"friend.list.request","RequestId":"45079db2-0a64-585b-a4ba-cd7604470694","Payload":{"Status":"Accepted","Limit":20,"AfterId":null}}
+{"Version":1,"Type":"friend.list.response","RequestId":"45079db2-0a64-585b-a4ba-cd7604470694","Payload":{"Success":true,"Data":{"Items":[{"User":{"Id":2,"Username":"baochuong","DisplayName":"Bảo Chương","IsOnline":true},"Friendship":{"UserInvite":1,"UserReceive":2,"Status":"Accepted","CreatedAt":"2026-10-27T02:00:00.000Z"}}],"NextAfterId":null},"Error":null}}
+{"Version":1,"Type":"friend.add.request","RequestId":"e7f786fd-21ca-584e-b13f-f28cd2d03b6b","Payload":{"UserId":2}}
+{"Version":1,"Type":"friend.add.response","RequestId":"e7f786fd-21ca-584e-b13f-f28cd2d03b6b","Payload":{"Success":true,"Data":{"Friendship":{"UserInvite":1,"UserReceive":2,"Status":"Pending","CreatedAt":"2026-10-27T02:00:00.000Z"}},"Error":null}}
+{"Version":1,"Type":"friend.respond.request","RequestId":"bc8b7df3-0bce-5b02-ac12-82b6c12be1a4","Payload":{"UserId":2,"Accept":true}}
+{"Version":1,"Type":"friend.respond.response","RequestId":"bc8b7df3-0bce-5b02-ac12-82b6c12be1a4","Payload":{"Success":true,"Data":{"Friendship":{"UserInvite":2,"UserReceive":1,"Status":"Accepted","CreatedAt":"2026-10-27T02:00:00.000Z"}},"Error":null}}
+{"Version":1,"Type":"friend.remove.request","RequestId":"9d63998d-c968-5371-b91e-2c669ddaee07","Payload":{"UserId":2}}
+{"Version":1,"Type":"friend.remove.response","RequestId":"9d63998d-c968-5371-b91e-2c669ddaee07","Payload":{"Success":true,"Data":{"UserId":2},"Error":null}}
+{"Version":1,"Type":"chat.send.request","RequestId":"af506752-039f-5daf-8a21-47f2a4d667e6","Payload":{"ReceiverId":2,"GroupId":null,"Content":"Chương ơi, xem protocol nhé!\nMình đã bổ sung mẫu JSON."}}
+{"Version":1,"Type":"chat.send.response","RequestId":"af506752-039f-5daf-8a21-47f2a4d667e6","Payload":{"Success":true,"Data":{"Message":{"Id":101,"SenderId":1,"ReceiverId":2,"GroupId":null,"Content":"Chương ơi, xem protocol nhé!\nMình đã bổ sung mẫu JSON.","SendTime":"2026-10-27T02:20:00.000Z"}},"Error":null}}
+{"Version":1,"Type":"chat.history.request","RequestId":"37fffd02-5970-5d49-b64c-286505c1fc81","Payload":{"PeerId":2,"GroupId":null,"BeforeId":null,"Limit":10}}
+{"Version":1,"Type":"chat.history.response","RequestId":"37fffd02-5970-5d49-b64c-286505c1fc81","Payload":{"Success":true,"Data":{"Items":[{"Id":101,"SenderId":1,"ReceiverId":2,"GroupId":null,"Content":"Chương ơi, xem protocol nhé!\nMình đã bổ sung mẫu JSON.","SendTime":"2026-10-27T02:20:00.000Z"}],"NextBeforeId":null},"Error":null}}
+{"Version":1,"Type":"group.create.request","RequestId":"a0c126c4-9ad2-5875-97e9-9fd3c5055134","Payload":{"GroupName":"Nhóm 1","MemberIds":[2]}}
+{"Version":1,"Type":"group.create.response","RequestId":"a0c126c4-9ad2-5875-97e9-9fd3c5055134","Payload":{"Success":true,"Data":{"Group":{"Id":10,"GroupName":"Nhóm 1","CreatedBy":1,"CreatedAt":"2026-10-27T02:10:00.000Z"}},"Error":null}}
+{"Version":1,"Type":"group.list.request","RequestId":"d2e4b5d2-f387-5759-aee8-0e659aa94b21","Payload":{"Limit":20,"AfterId":null}}
+{"Version":1,"Type":"group.list.response","RequestId":"d2e4b5d2-f387-5759-aee8-0e659aa94b21","Payload":{"Success":true,"Data":{"Items":[{"Id":10,"GroupName":"Nhóm 1","CreatedBy":1,"CreatedAt":"2026-10-27T02:10:00.000Z"}],"NextAfterId":null},"Error":null}}
+{"Version":1,"Type":"group.members.request","RequestId":"eafb4bcc-1177-5348-bdf3-bbee7684af8d","Payload":{"GroupId":10,"Limit":20,"AfterId":null}}
+{"Version":1,"Type":"group.members.response","RequestId":"eafb4bcc-1177-5348-bdf3-bbee7684af8d","Payload":{"Success":true,"Data":{"Items":[{"Id":1,"Username":"leanh","DisplayName":"Lê Anh","IsOnline":true},{"Id":2,"Username":"baochuong","DisplayName":"Bảo Chương","IsOnline":true}],"NextAfterId":null},"Error":null}}
+{"Version":1,"Type":"group.member.add.request","RequestId":"1fa73981-93f6-5113-80e3-9c7e54898131","Payload":{"GroupId":10,"UserId":2}}
+{"Version":1,"Type":"group.member.add.response","RequestId":"1fa73981-93f6-5113-80e3-9c7e54898131","Payload":{"Success":true,"Data":{"GroupId":10,"UserId":2},"Error":null}}
+{"Version":1,"Type":"group.member.remove.request","RequestId":"423653e1-0b99-57b5-bef6-1dd6a3de115a","Payload":{"GroupId":10,"UserId":2}}
+{"Version":1,"Type":"group.member.remove.response","RequestId":"423653e1-0b99-57b5-bef6-1dd6a3de115a","Payload":{"Success":true,"Data":{"GroupId":10,"UserId":2},"Error":null}}
+{"Version":1,"Type":"presence.changed.event","RequestId":null,"Payload":{"UserId":2,"IsOnline":false}}
+{"Version":1,"Type":"friend.changed.event","RequestId":null,"Payload":{"UserId":2,"Friendship":{"UserInvite":1,"UserReceive":2,"Status":"Accepted","CreatedAt":"2026-10-27T02:00:00.000Z"}}}
+{"Version":1,"Type":"chat.message.event","RequestId":null,"Payload":{"Message":{"Id":101,"SenderId":1,"ReceiverId":2,"GroupId":null,"Content":"Chương ơi, xem protocol nhé!\nMình đã bổ sung mẫu JSON.","SendTime":"2026-10-27T02:20:00.000Z"}}}
+{"Version":1,"Type":"group.changed.event","RequestId":null,"Payload":{"GroupId":10,"Action":"member_added","UserId":2,"Group":{"Id":10,"GroupName":"Nhóm 1","CreatedBy":1,"CreatedAt":"2026-10-27T02:10:00.000Z"}}}
+{"Version":1,"Type":"chat.send.request","RequestId":"c7882cb7-c60c-584f-865b-b2d71aeeffe8","Payload":{"ReceiverId":null,"GroupId":10,"Content":"Chào cả nhóm! 👋"}}
+{"Version":1,"Type":"chat.send.response","RequestId":"c7882cb7-c60c-584f-865b-b2d71aeeffe8","Payload":{"Success":true,"Data":{"Message":{"Id":102,"SenderId":1,"ReceiverId":null,"GroupId":10,"Content":"Chào cả nhóm! 👋","SendTime":"2026-10-27T02:20:00.000Z"}},"Error":null}}
+{"Version":1,"Type":"chat.message.event","RequestId":null,"Payload":{"Message":{"Id":102,"SenderId":1,"ReceiverId":null,"GroupId":10,"Content":"Chào cả nhóm! 👋","SendTime":"2026-10-27T02:20:00.000Z"}}}
+{"Version":1,"Type":"auth.login.response","RequestId":"34382a65-f5e2-5d46-86f1-093b01619c54","Payload":{"Success":false,"Data":null,"Error":{"Code":"INVALID_CREDENTIALS","Message":"Tên đăng nhập hoặc mật khẩu không đúng."}}}
+{"Version":1,"Type":"system.error.response","RequestId":"34382a65-f5e2-5d46-86f1-093b01619c54","Payload":{"Code":"UNKNOWN_TYPE","Message":"Loại gói chưa được hỗ trợ."}}
