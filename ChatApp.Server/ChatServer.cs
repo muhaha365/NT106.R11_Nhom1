@@ -93,7 +93,7 @@ public class ChatServer
 
                     try
                     {
-                        await receiver.SendPacketAsync(send);
+                        await receiver.SendPacketAsync(send, ct);
                     }
                     catch (Exception ex)
                     {

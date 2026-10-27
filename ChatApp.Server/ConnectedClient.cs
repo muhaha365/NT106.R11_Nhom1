@@ -22,11 +22,11 @@ public class ConnectedClient : IDisposable
 
     public async Task<Packet?> ReceivePacketAsync(CancellationToken ct)
     {
-        return await packetIO.ReceivePacketAsync();
+        return await packetIO.ReceivePacketAsync(ct);
     }
-    public async Task SendPacketAsync(Packet packet)
+    public async Task SendPacketAsync(Packet packet, CancellationToken ct)
     {
-        await packetIO.SendPacketAsync(packet);
+        await packetIO.SendPacketAsync(packet, ct);
     }
     public void Dispose()
     {
