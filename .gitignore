@@ -4,6 +4,7 @@
 *.user
 *.suo
 TestResults/
+/ui-checks/
 *.log
 .env
 .env.*

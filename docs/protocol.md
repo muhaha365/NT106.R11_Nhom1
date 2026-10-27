@@ -7,35 +7,35 @@ Tài liệu thống nhất cấu trúc yêu cầu, phản hồi và sự kiện 
 ## 1. Trạng thái hiện tại
 
 - [Packet.cs](../ChatApp.Shared/Packet.cs) có `Version`, `Type`, `RequestId`, `Payload`.
-- [PacketIO.cs](../ChatApp.Shared/PacketIO.cs) serialize bằng System.Text.Json mặc định, gửi một JSON trên một dòng và đọc bằng ReadLineAsync.
+- [PacketIO.cs](../ChatApp.Shared/PacketIO.cs) serialize bằng System.Text.Json mặc định; gửi header độ dài 4 byte big-endian rồi đến JSON UTF-8, tối đa 1 MiB cho phần JSON.
 - [ChatServer.cs](../ChatApp.Server/ChatServer.cs) chỉ nhận `Type = "chat"`, Payload là chuỗi, rồi chuyển tiếp tới các kết nối khác. ID như Client 0 là ID kết nối thử nghiệm, không phải user đã xác thực.
-- [MainForm.cs](../ChatApp.Client/Forms/MainForm.cs) gửi/nhận gói chat, chưa ghép response nghiệp vụ bằng RequestId.
+- [ProtocolClient.cs](../ChatApp.Client/ProtocolClient.cs) dùng PacketIO qua ClientConnection, ghép response bằng RequestId và chuyển event tới UI bạn bè/nhóm trong MainForm.
 
-**Các gói nghiệp vụ bên dưới là thiết kế cần triển khai tiếp.** Runtime chưa xử lý auth/friend/group/history, chưa kiểm tra schema hay giới hạn gói. Schema không tự bổ sung các hành vi đó cho PacketIO.
+**Nghiệp vụ server bên dưới cần triển khai tiếp.** Client đã nối request/response/event cho UI bạn bè/nhóm; server chưa xử lý auth/friend/group/history. PacketIO kiểm tra độ dài khung và deserialize JSON, chưa xác thực theo schema. Schema không tự bổ sung handler nghiệp vụ.
 
-Tài liệu này thay mô tả cũ về header độ dài 4 byte, camelCase và ID dạng chuỗi bằng quy ước phù hợp code/model hiện có: JSON theo dòng, PascalCase và ID nghiệp vụ dạng int. Không trộn hai cách đóng khung trên cùng kết nối.
+Quy ước theo code/model hiện có: header độ dài 4 byte big-endian, PascalCase và ID nghiệp vụ dạng int. Hai phía phải dùng cùng phiên bản PacketIO; bản cũ truyền JSON theo dòng không tương thích với khung hiện tại.
 
 File đi kèm:
 
 - [protocol.schema.json](protocol.schema.json): JSON Schema Draft 2020-12 cho 40 loại gói, bao gồm gói demo.
-- [protocol.examples.jsonl](protocol.examples.jsonl): 45 mẫu gói độc lập bao phủ mọi loại gói. Không gửi toàn bộ file vào một socket như một kịch bản: nhiều dòng là response/event chỉ server được gửi.
+- [protocol.examples.jsonl](protocol.examples.jsonl): 45 mẫu JSON độc lập bao phủ mọi loại gói, không chứa header nhị phân. Khi gửi từng mẫu phải thêm header độ dài; không gửi toàn bộ file vào một socket như một kịch bản vì nhiều mẫu là response/event chỉ server được gửi.
 
 ## 2. Cách truyền gói trên TCP
 
 | Thuộc tính | Quy định thiết kế |
 |---|---|
 | Mã hóa | UTF-8 không BOM |
-| Một khung | Một JSON object gọn, kết thúc bằng LF hoặc CRLF |
+| Một khung | Header 4 byte big-endian chứa độ dài JSON UTF-8, tiếp theo đúng số byte JSON đó |
 | Tên trường | PascalCase, phân biệt hoa/thường, khớp Packet.cs |
 | Serialize | WriteIndented = false; dùng serializer, không nối JSON thủ công |
-| Giới hạn đề xuất | Tối đa 65.536 byte JSON UTF-8, không tính dấu kết thúc dòng |
+| Giới hạn | JSON có từ 1 đến 1.048.576 byte (1 MiB), không tính header |
 | Đọc/ghi | Một vòng đọc và một khóa/hàng ghi dùng chung cho mỗi kết nối |
 
-StreamWriter.WriteLineAsync hiện gửi CRLF trên Windows; StreamReader.ReadLineAsync đọc được LF và CRLF. Xuống dòng trong Content được escape thành `\n`; dấu nháy và gạch chéo cũng phải qua serializer. Không serialize Payload hai lần thành chuỗi chứa JSON.
+Header là số nguyên 32 bit big-endian biểu diễn độ dài theo byte, không phải số ký tự. Không thêm LF/CRLF sau JSON. Xuống dòng trong Content được escape thành `\n`; dấu nháy và gạch chéo cũng phải qua serializer. Không serialize Payload hai lần thành chuỗi chứa JSON.
 
-Một lần ReadAsync có thể nhận một phần gói hoặc nhiều gói. StreamReader hiện giữ buffer và trạng thái UTF-8, không coi buffer 1024/4096 byte là một tin nhắn. Khi hoàn thiện framing, phải chặn kích thước buffer trong lúc đọc: đọc hết dòng vô hạn rồi mới kiểm tra không giới hạn được bộ nhớ.
+Một lần ReadAsync có thể nhận một phần gói hoặc nhiều gói. PacketIO đọc đủ 4 byte header, kiểm tra độ dài trước khi cấp phát payload, rồi đọc đủ số byte JSON. Không coi buffer 1024/4096 byte là một tin nhắn. Khóa gửi của PacketIO giữ header và payload của mỗi gói liền nhau khi nhiều tác vụ cùng gửi.
 
-UTF-8/JSON lỗi, dòng trống hoặc gói quá trần: đóng kết nối. EOF trước gói mới là ngắt bình thường; EOF còn một dòng chưa có dấu kết thúc là gói dở, phải bỏ. ReadLineAsync hiện có thể trả dòng dở cuối stream, nên cần xử lý thêm. Các giới hạn và hành vi từ chối trên chưa được code thực thi.
+EOF trước header mới là ngắt bình thường (ReceivePacketAsync trả null). Header/payload thiếu byte, độ dài âm hoặc vượt trần và JSON không hợp lệ gây lỗi; phía gọi kết thúc kết nối. Khung độ dài 0 không chứa JSON hợp lệ và cũng bị từ chối khi deserialize. SendPacketAsync/ReceivePacketAsync nhận CancellationToken; khi hủy giữa một khung phải kết thúc kết nối thay vì tiếp tục đọc/ghi trên khung dở.
 
 ## 3. Envelope chung
 
@@ -239,4 +239,4 @@ Kiểm tra khi có code nghiệp vụ:
 - Hai login/lời mời đồng thời, xóa bạn/thành viên trong lúc gửi: quyền/dữ liệu nhất quán.
 - History hơn 10 tin, có tin mới xen vào; cursor không làm trùng tin hiển thị.
 
-Typing/seen, file/ảnh/video, tìm tin nhắn, token lưu phiên và mã hóa đầu cuối chưa thuộc bộ gói này. File nhị phân cần thiết kế riêng, không ghi trực tiếp vào luồng JSON theo dòng hoặc nhét nguyên file vượt trần vào Payload.
+Typing/seen, file/ảnh/video, tìm tin nhắn, token lưu phiên và mã hóa đầu cuối chưa thuộc bộ gói này. File nhị phân cần thiết kế riêng, không ghi trực tiếp vào luồng gói JSON hoặc nhét nguyên file vượt trần vào Payload.
