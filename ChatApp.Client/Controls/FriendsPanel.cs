@@ -8,7 +8,7 @@ namespace ChatApp.Client.Controls;
 public sealed class FriendsPanel : UserControl
 {
     private readonly ProtocolClient _client;
-    private readonly TabControl _tabs = new() { Name = "friendsTabs", Dock = DockStyle.Fill };
+    private readonly TabControl _tabs = new PageTabs() { Name = "friendsTabs", Dock = DockStyle.Fill };
     private readonly ListView _friends = UiTheme.CreateList(("Tên hiển thị", 220), ("Tài khoản", 180), ("Trạng thái", 140));
     private readonly ListView _pending = UiTheme.CreateList(("Tên hiển thị", 210), ("Tài khoản", 170), ("Lời mời", 160));
     private readonly ListView _results = UiTheme.CreateList(("Tên hiển thị", 210), ("Tài khoản", 170), ("Trạng thái", 160));
@@ -41,10 +41,11 @@ public sealed class FriendsPanel : UserControl
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         Dock = DockStyle.Fill;
-        BackColor = UiTheme.Surface;
+        BackColor = Color.White;
         Font = new Font("Segoe UI", 10);
         AutoScaleMode = AutoScaleMode.Inherit;
-        Padding = new Padding(16);
+        Padding = new Padding(8);
+        _searchBox.PlaceholderText = "Tìm tên hoặc tài khoản…";
         _friends.Name = "friendsList";
         _pending.Name = "pendingList";
         _results.Name = "searchResults";
@@ -59,6 +60,9 @@ public sealed class FriendsPanel : UserControl
         _status.MaximumSize = Size.Empty;
         _status.AutoSize = true;
 
+        AddListTab("Bạn bè", _friendsHint, _friends, _open, _remove);
+        AddListTab("Lời mời", _pendingHint, _pending, _accept, _decline);
+        BuildSearchTab();
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4 };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -67,12 +71,9 @@ public sealed class FriendsPanel : UserControl
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.Controls.Add(UiTheme.CreateTitle("Bạn bè"), 0, 0);
         layout.Controls.Add(UiTheme.CreateActions(_refresh), 0, 1);
-        layout.Controls.Add(_tabs, 0, 2);
+        layout.Controls.Add(UiTheme.CreateTabs(_tabs), 0, 2);
         layout.Controls.Add(_status, 0, 3);
         Controls.Add(layout);
-        AddListTab("Bạn bè", _friendsHint, _friends, _open, _remove);
-        AddListTab("Lời mời", _pendingHint, _pending, _accept, _decline);
-        BuildSearchTab();
 
         _refresh.Click += async (_, _) => await RefreshAsync();
         _search.Click += async (_, _) => await SearchAsync();
@@ -95,7 +96,7 @@ public sealed class FriendsPanel : UserControl
 
     private void AddListTab(string title, Label hint, ListView list, params Control[] actions)
     {
-        var tab = new TabPage(title) { BackColor = UiTheme.Surface, Padding = new Padding(10) };
+        var tab = new TabPage(title) { BackColor = Color.White, Padding = new Padding(8) };
         var layout = PageLayout();
         hint.Dock = DockStyle.Fill;
         hint.MaximumSize = Size.Empty;
@@ -118,7 +119,7 @@ public sealed class FriendsPanel : UserControl
 
     private void BuildSearchTab()
     {
-        var tab = new TabPage("Tìm người") { BackColor = UiTheme.Surface, Padding = new Padding(10) };
+        var tab = new TabPage("Tìm người") { BackColor = Color.White, Padding = new Padding(8) };
         var layout = PageLayout();
         var query = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 2, RowCount = 3 };
         query.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));

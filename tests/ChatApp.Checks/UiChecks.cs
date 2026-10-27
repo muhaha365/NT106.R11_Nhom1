@@ -33,11 +33,16 @@ internal static class UiChecks
             await Until(() => friends.Items.Count == 2 && pending.Items.Count == 2 && groups.Items.Count == 2);
             NetworkChecks.Check(server.Requests.Any(p => p.Type == "friend.list.request" && p.Payload!.Value.GetProperty("AfterId").ValueKind == JsonValueKind.Number), "Friend pagination");
             NetworkChecks.Check(server.Requests.Any(p => p.Type == "group.list.request" && p.Payload!.Value.GetProperty("AfterId").ValueKind == JsonValueKind.Number), "Group pagination");
+            NetworkChecks.Check(friends.GetItemRect(0).Height >= friends.Font.Height * 3, "Avatar rows scale with screen DPI");
+            var navigation = Find<FlowLayoutPanel>(window, "friendsTabsNavigation");
+            foreach (var choice in navigation.Controls.OfType<RadioButton>())
+                NetworkChecks.Check(choice.Width >= TextRenderer.MeasureText(choice.Text, choice.Font).Width + 12, "Navigation labels fit at screen DPI");
+            NetworkChecks.Check(navigation.Controls.OfType<RadioButton>().Count(choice => choice.Checked) == 1, "Selected navigation item is visible");
 
             SelectGroup(groups, 10);
             await server.HeldHistoryAsync();
             await server.SendMessageEventAsync(FixtureServer.Message(102, 10, "Tin đến trong lúc tải lịch sử."));
-            var messages = Find<RichTextBox>(window, "groupMessages");
+            var messages = Find<Control>(window, "groupMessages");
             await Until(() => messages.Text.Contains("Tin đến trong lúc tải lịch sử."));
             await server.CompleteHistoryAsync();
             await Until(() => messages.Text.Contains("Chào nhóm"));
@@ -58,6 +63,36 @@ internal static class UiChecks
             await Task.Delay(50);
             NetworkChecks.Check(box.Width > 100 && messages.Height > 80, "Minimum window layout");
             Capture(window, imageDirectory, "03-minimum-size");
+            NetworkChecks.Check(!messages.Controls.OfType<Panel>().Single().HorizontalScroll.Visible, "Message bubbles do not overflow horizontally after resize");
+            var longContent = string.Concat(Enumerable.Repeat("Tiếng Việt 🙂 ", 100)) + "\n" + new string('x', 500) + "\nDòng cuối";
+            await server.SendMessageEventAsync(FixtureServer.Message(104, 10, longContent));
+            await Until(() => messages.Text.Contains("Dòng cuối"));
+            var viewport = messages.Controls.OfType<Panel>().Single();
+            var rows = viewport.Controls.OfType<Panel>().ToArray();
+            NetworkChecks.Check(rows.All(row => row.Right <= viewport.ClientSize.Width), "Bubble rows stay within the viewport");
+            var bodies = rows.SelectMany(row => row.Controls.OfType<Panel>()).SelectMany(bubble => bubble.Controls.OfType<RichTextBox>()).ToArray();
+            var longBody = bodies.Single(body => body.Text == longContent);
+            NetworkChecks.Check(longBody.GetPositionFromCharIndex(longBody.TextLength).Y + longBody.Font.Height <= longBody.ClientSize.Height, "Wrapped Unicode and long unbroken text are not clipped inside a bubble");
+            longBody.Select(0, "Tiếng Việt".Length);
+            NetworkChecks.Check(longBody.ReadOnly && longBody.ShortcutsEnabled && longBody.SelectedText == "Tiếng Việt", "Message text retains native selection and copy shortcuts");
+            longBody.Focus();
+            longBody.Select(longBody.TextLength, 0);
+            longBody.ScrollToCaret();
+            await Until(() => {
+                var caret = viewport.PointToClient(longBody.PointToScreen(longBody.GetPositionFromCharIndex(longBody.TextLength)));
+                return caret.Y >= 0 && caret.Y + longBody.Font.Height <= viewport.Height;
+            });
+            longBody.Select(0, 0);
+            await Until(() => {
+                var caret = viewport.PointToClient(longBody.PointToScreen(longBody.GetPositionFromCharIndex(0)));
+                return caret.Y >= 0 && caret.Y + longBody.Font.Height <= viewport.Height;
+            });
+            Find<TextBox>(window, "groupMessageBox").Focus();
+            var scroll = messages.Controls.OfType<VScrollBar>().Single();
+            scroll.Value = 0;
+            NetworkChecks.Check(rows.Min(row => row.Top) >= 0, "Vertical scrollbar can reach the first message");
+            scroll.Value = Math.Max(0, scroll.Maximum - scroll.LargeChange + 1);
+            Capture(window, imageDirectory, "08-long-message");
             window.Size = originalSize;
 
             SelectGroup(groups, 20);
@@ -75,7 +110,8 @@ internal static class UiChecks
             NetworkChecks.Check(box.Text == "Bản nháp nhóm lab" && !messages.Text.Contains("Chào nhóm"), "Late old history ignored and draft preserved");
 
             var tabs = Find<TabControl>(window, "friendsTabs");
-            tabs.SelectedIndex = 2;
+            navigation.Controls.OfType<RadioButton>().Single(choice => choice.Text == "Tìm người").PerformClick();
+            NetworkChecks.Check(tabs.SelectedIndex == 2, "Navigation buttons switch the visible page");
             Find<TextBox>(window, "searchBox").Text = "ngoc";
             Find<Button>(window, "searchButton").PerformClick();
             var results = Find<ListView>(window, "searchResults");
@@ -133,7 +169,7 @@ internal static class UiChecks
 
             await server.RemoveSelfAsync();
             await Until(() => groups.Items.Count == 2 && !Find<Button>(window, "sendGroupButton").Enabled);
-            NetworkChecks.Check(messages.TextLength == 0, "Removal clears selected group's history");
+            NetworkChecks.Check(messages.Text.Length == 0, "Removal clears selected group's history");
             client.Disconnect();
             await Until(() => friends.Items.Count == 0 && groups.Items.Count == 0);
             NetworkChecks.Check(Find<Label>(window, "currentUserLabel").Text == "Chưa đăng nhập", "Disconnect invalidates user context");
@@ -152,7 +188,7 @@ internal static class UiChecks
             var groups = Find<ListView>(window, "groupsList");
             await Until(() => groups.Items.Count == 2);
             SelectGroup(groups, 10);
-            var history = Find<RichTextBox>(window, "groupMessages");
+            var history = Find<Control>(window, "groupMessages");
             await Until(() => history.Text.Contains("Chào nhóm"));
             server.DropNextReplyType = "chat.send.request";
             Find<TextBox>(window, "groupMessageBox").Text = "Tin đã lưu nhưng mất phản hồi";

@@ -15,7 +15,7 @@ public sealed class GroupChatPanel : UserControl
     private readonly ListView groupsList = UiTheme.CreateList(("Nhóm của bạn", 240));
     private readonly Button createGroupButton;
     private readonly Button refreshGroupsButton;
-    private readonly RichTextBox groupMessages = new() { Name = "groupMessages", Dock = DockStyle.Fill, ReadOnly = true, BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle, DetectUrls = false, AccessibleName = "Lịch sử trò chuyện nhóm" };
+    private readonly MessageTimeline groupMessages = new() { Name = "groupMessages", AccessibleName = "Lịch sử trò chuyện nhóm" };
     private readonly TextBox groupMessageBox = new() { Name = "groupMessageBox", Dock = DockStyle.Fill, Multiline = true, AcceptsReturn = true, ScrollBars = ScrollBars.Vertical, AccessibleName = "Nội dung tin nhắn nhóm" };
     private readonly Button sendGroupButton;
     private readonly Button membersButton;
@@ -52,8 +52,10 @@ public sealed class GroupChatPanel : UserControl
         _selectionLifetime = CancellationTokenSource.CreateLinkedTokenSource(_sessionLifetime.Token);
         Dock = DockStyle.Fill;
         Font = new Font("Segoe UI", 10);
-        BackColor = UiTheme.Surface;
-        Padding = new Padding(16);
+        BackColor = Color.White;
+        Padding = new Padding(8);
+        groupMessageBox.BorderStyle = BorderStyle.None;
+        groupMessageBox.PlaceholderText = "Viết tin nhắn cho nhóm…";
         groupsList.Name = "groupsList";
         groupsList.AccessibleName = "Danh sách nhóm của bạn";
         createGroupButton = UiTheme.CreateButton("Tạo nhóm", (_, _) => CreateGroup(), true);
@@ -76,8 +78,8 @@ public sealed class GroupChatPanel : UserControl
         groupTitleLabel.Height = 32;
 
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70));
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 29));
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 71));
         var left = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(0, 0, 12, 0) };
         left.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         left.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -93,7 +95,7 @@ public sealed class GroupChatPanel : UserControl
         right.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        right.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
+        right.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
         right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, AutoSize = true };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -104,8 +106,11 @@ public sealed class GroupChatPanel : UserControl
         right.Controls.Add(groupStatusLabel, 0, 1);
         right.Controls.Add(groupMessages, 0, 2);
         right.Controls.Add(UiTheme.CreateActions(loadHistoryButton), 0, 3);
-        right.Controls.Add(UiTheme.CreateHint("Tin nhắn"), 0, 4);
-        right.Controls.Add(groupMessageBox, 0, 5);
+        right.Controls.Add(UiTheme.CreateHint("Soạn tin nhắn"), 0, 4);
+        var input = new RoundedPanel { Dock = DockStyle.Fill, FillColor = UiTheme.Surface, Padding = new Padding(12, 10, 12, 8) };
+        groupMessageBox.BackColor = UiTheme.Surface;
+        input.Controls.Add(groupMessageBox);
+        right.Controls.Add(input, 0, 5);
         right.Controls.Add(UiTheme.CreateActions(sendGroupButton, UiTheme.CreateHint("Enter để gửi · Shift+Enter để xuống dòng")), 0, 6);
         root.Controls.Add(left, 0, 0);
         root.Controls.Add(right, 1, 0);
@@ -226,7 +231,7 @@ public sealed class GroupChatPanel : UserControl
             groupsList.Items.Clear();
             foreach (var group in _groups.Values.OrderBy(group => group.Id))
             {
-                var row = new ListViewItem(group.GroupName) { Tag = group };
+                var row = new ListViewItem(group.GroupName) { Tag = group, ToolTipText = group.GroupName };
                 groupsList.Items.Add(row);
                 if (_selected?.Id == group.Id) { _selected = group; row.Selected = true; groupTitleLabel.Text = group.GroupName; }
             }
@@ -331,16 +336,8 @@ public sealed class GroupChatPanel : UserControl
 
     private void RenderMessages(bool scrollToEnd)
     {
-        var oldSelection = groupMessages.SelectionStart;
-        groupMessages.Clear();
-        foreach (var message in _messages.Values.OrderBy(message => message.Id))
-        {
-            var sender = message.SenderId == _user?.Id ? "Bạn" : _memberNames.GetValueOrDefault(message.SenderId, $"Người dùng #{message.SenderId}");
-            groupMessages.AppendText($"{sender} · {message.SendTime.ToLocalTime():dd/MM/yyyy HH:mm}\n{message.Content}\n\n");
-        }
-        groupMessages.SelectionStart = scrollToEnd ? groupMessages.TextLength : Math.Min(oldSelection, groupMessages.TextLength);
-        groupMessages.SelectionLength = 0;
-        groupMessages.ScrollToCaret();
+        groupMessages.SetMessages(_messages.Values.OrderBy(message => message.Id), _user?.Id,
+            id => _memberNames.GetValueOrDefault(id, $"Người dùng #{id}"), scrollToEnd);
     }
 
     private async Task SendAsync()

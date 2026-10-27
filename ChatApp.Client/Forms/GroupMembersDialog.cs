@@ -32,6 +32,7 @@ public sealed class GroupMembersDialog : Form
         AutoScaleDimensions = new SizeF(96F, 96F);
         Font = new Font("Segoe UI", 10);
         BackColor = UiTheme.Surface;
+        ForeColor = UiTheme.Ink;
         Size = new Size(540, 550);
         MinimumSize = new Size(420, 420);
         StartPosition = FormStartPosition.CenterParent;

@@ -2,6 +2,10 @@
 
 Hai task gồm giao diện WinForms và phần client gửi/nhận theo [protocol JSON](protocol.md). Nghiệp vụ xác thực, bạn bè, nhóm và database phía server được ghép ở task khác. Không có tài khoản hoặc danh sách người dùng giả trong ứng dụng.
 
+Giao diện dùng nền sáng, điểm nhấn indigo, danh sách dạng thẻ có avatar chữ cái và chỉ báo online. Tin nhắn nhóm hiển thị thành bong bóng: tin của bạn ở bên phải, tin của thành viên khác ở bên trái. Nội dung vẫn là control văn bản có thể chọn chữ và sao chép bằng Ctrl+C; lăn chuột hoặc dùng thanh cuộn để xem lịch sử. Thanh điều hướng hỗ trợ bàn phím và tự xuống hàng khi thiếu chỗ.
+
+Với tin nhắn dài hơn khung chat, vùng cuộn theo con trỏ khi di chuyển hoặc chọn văn bản bằng bàn phím.
+
 ## Mở giao diện
 
 1. Build solution với SDK .NET 10 và workload Windows desktop.
@@ -80,7 +84,7 @@ dotnet run --project .\tests\ChatApp.Checks\ChatApp.Checks.csproj
 
 Chạy kiểm tra trên Windows. Project kiểm tra chỉ dùng thư viện có sẵn của .NET, không thêm test framework/package. Nó mở các form ẩn và dùng một TCP peer **chỉ dành cho kiểm thử**, không khởi chạy hoặc thay thế server nghiệp vụ.
 
-Các kiểm tra bao gồm: response đảo thứ tự, event xen response, lỗi server, timeout/hủy, reconnect; phân trang bạn bè/nhóm; tìm kiếm và lời mời; gộp history/event, đổi nhóm khi request còn chờ, giữ bản nháp; tạo nhóm, thêm thành viên, quyền chủ nhóm và xóa trạng thái sau mất kết nối.
+Các kiểm tra bao gồm: response đảo thứ tự, event xen response, lỗi server, timeout/hủy, reconnect; phân trang bạn bè/nhóm; tìm kiếm và lời mời; gộp history/event, đổi nhóm khi request còn chờ, giữ bản nháp; tạo nhóm, thêm thành viên, quyền chủ nhóm và xóa trạng thái sau mất kết nối. Phần giao diện kiểm tra thêm nhãn điều hướng ở mức DPI hiện tại, cuộn/resize bong bóng, tin dài có tiếng Việt/emoji, chuỗi liền không khoảng trắng và chọn nội dung để sao chép.
 
 Có thể xuất ảnh kiểm tra giao diện và các request thực đã gửi:
 
