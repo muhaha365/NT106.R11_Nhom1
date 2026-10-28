@@ -75,21 +75,8 @@ Chỉ chủ nhóm nhìn thấy nút quản lý thành viên; không xóa chủ n
 
 Không có thay đổi ở ChatApp.Server hoặc database trong phần UI này.
 
-## Kiểm tra
+## Build dự án
 
 ```powershell
 dotnet build .\ChatApp.Nhom1.slnx
-dotnet run --project .\tests\ChatApp.Checks\ChatApp.Checks.csproj
 ```
-
-Chạy kiểm tra trên Windows. Project kiểm tra chỉ dùng thư viện có sẵn của .NET, không thêm test framework/package. Nó mở các form ẩn và dùng một TCP peer **chỉ dành cho kiểm thử**, không khởi chạy hoặc thay thế server nghiệp vụ.
-
-Các kiểm tra bao gồm: response đảo thứ tự, event xen response, lỗi server, timeout/hủy, reconnect; phân trang bạn bè/nhóm; tìm kiếm và lời mời; gộp history/event, đổi nhóm khi request còn chờ, giữ bản nháp; tạo nhóm, thêm thành viên, quyền chủ nhóm và xóa trạng thái sau mất kết nối. Phần giao diện kiểm tra thêm nhãn điều hướng ở mức DPI hiện tại, cuộn/resize bong bóng, tin dài có tiếng Việt/emoji, chuỗi liền không khoảng trắng và chọn nội dung để sao chép.
-
-Có thể xuất ảnh kiểm tra giao diện và các request thực đã gửi:
-
-```powershell
-dotnet run --project .\tests\ChatApp.Checks\ChatApp.Checks.csproj -- --screenshots .\ui-checks
-```
-
-Thư mục này chứa dữ liệu fixture và ảnh kiểm tra, không phải dữ liệu người dùng thật. Không commit ảnh hoặc output kiểm tra vào repository. Kết quả của fixture không chứng minh server nghiệp vụ đã được triển khai.
