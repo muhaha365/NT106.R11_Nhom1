@@ -1,6 +1,6 @@
 ChatApp.Nhom1 — khung đồ án nhắn tin WinForms, C# / .NET 10.
 
-Mở `ChatApp.Nhom1.slnx` bằng Visual Studio 2026 có workload .NET desktop development. Solution gồm ba project ứng dụng và project kiểm tra ChatApp.Checks:
+Mở `ChatApp.Nhom1.slnx` bằng Visual Studio 2026 có workload .NET desktop development. Solution gồm ba project:
 
 | Project | Framework | Vai trò |
 |---|---|---|
@@ -12,7 +12,7 @@ Client và Server đều tham chiếu Shared. Shared không tham chiếu ngượ
 
 Tình trạng hiện tại:
 
-- Các project ứng dụng và project kiểm tra có thể build cùng solution.
+- Cả ba project có thể build cùng solution.
 - Client mở LoginForm. Chọn **Demo chat** để mở MainForm có UI bạn bè, lời mời, tìm người, nhóm và thành viên.
 - ProtocolClient quản lý một vòng nhận chung, ghép response theo RequestId, phát event và xử lý timeout/mất kết nối.
 - Server lắng nghe 127.0.0.1:5000, chuyển tiếp gói `chat` tới các client khác. Tab **Chat chung (demo)** giữ tương thích với luồng này.
@@ -44,14 +44,6 @@ Server dùng Ctrl+C để dừng. Có thể mở nhiều Client để thử gử
 - [Tích hợp database](database/README.md)
 
 MainForm cho nhập máy chủ/cổng, mặc định 127.0.0.1:5000. Server hiện chỉ lắng nghe loopback trên cùng máy. Khi triển khai LAN cần đổi địa chỉ lắng nghe phù hợp và cấu hình firewall.
-
-Kiểm tra client/UI trên Windows, không cần test framework hoặc package bên ngoài:
-
-```powershell
-dotnet run --project .\tests\ChatApp.Checks\ChatApp.Checks.csproj
-```
-
-Các kiểm tra dùng TCP fixture riêng và form ẩn, không thay thế server nghiệp vụ. Đọc hướng dẫn UI để xuất ảnh kiểm tra hoặc đối chiếu request.
 
 Trước khi làm theo timeline, nhóm cần đối chiếu phạm vi với giảng viên: username/password chưa bao phủ Email/SĐT/Google; file/ảnh/video và thông báo khi ứng dụng đóng cũng chưa được thực hiện.
 
