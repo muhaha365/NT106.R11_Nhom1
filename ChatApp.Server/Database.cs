@@ -21,6 +21,7 @@ namespace ChatApp.Server
         private static string Key(int id) => id.ToString();
         private static string Pair(int a, int b) => a < b ? $"{Key(a)}_{Key(b)}" : $"{Key(b)}_{Key(a)}";
         private DocumentReference User(int id) => _db.Collection("user").Document(Key(id));
+        // Chạy ở mốc kiểm tra kết nối, không chạy cho mỗi tin nhắn.
         public async Task CheckConnectionAsync(CancellationToken ct = default)
         {
             var doc = _db.Collection("diagnostics").Document("server-connection");
