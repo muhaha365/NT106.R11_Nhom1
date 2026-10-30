@@ -11,4 +11,9 @@
     <ProjectReference Include="../ChatApp.Shared/ChatApp.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="FirebaseAdmin" Version="3.7.0" />
+    <PackageReference Include="Google.Cloud.Firestore" Version="4.6.0" />
+  </ItemGroup>
+
 </Project>
