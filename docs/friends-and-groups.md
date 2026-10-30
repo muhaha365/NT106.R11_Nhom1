@@ -17,6 +17,20 @@ Kết nối TCP chưa phải đăng nhập. MainForm mặc định chưa có use
 
 ## Điểm ghép với luồng đăng nhập
 
+### Cách giải thích ProtocolClient
+
+Luồng chính: **tạo RequestId → gửi Packet → chờ response cùng ID → đọc Data hoặc báo lỗi**.
+
+- `ConnectAsync`: mở kết nối và chạy một vòng nhận chung.
+- `RequestAsync<T>`: đăng ký yêu cầu trong `_pending`, gửi gói, chờ kết quả; xóa yêu cầu khi xong, hết thời gian hoặc bị hủy.
+- `ReceiveLoopAsync`: gói không có RequestId được chuyển cho UI qua `EventReceived`; response được giao cho đúng yêu cầu trong `_pending`.
+- `ReadReply<T>`: đọc JSON theo `ServerReply`/`ServerError`; thành công trả về Data kiểu T, thất bại báo Code/Message.
+- `Close`: đóng đúng kết nối hiện tại và báo lỗi cho các yêu cầu còn chờ.
+
+`TaskCompletionSource` là chỗ chờ kết quả: RequestAsync chờ Task, vòng nhận gọi TrySetResult để trả kết quả. `ConcurrentDictionary` cho phép vòng gửi/nhận cùng truy cập bảng `_pending`. Khóa `_connectGate` tránh mở hai kết nối cùng lúc; `Interlocked.CompareExchange` tránh vòng nhận cũ đóng nhầm kết nối mới.
+
+### Bàn giao kết nối từ login
+
 `ProtocolClient` dùng `ClientConnection`/`PacketIO` hiện có nhưng sở hữu **một vòng nhận duy nhất**. Nó ghép response bằng RequestId và phát event riêng. Khi dùng ProtocolClient, không gọi thêm ReceiveAsync ở LoginForm/MainForm hoặc control.
 
 Luồng login cần dùng ProtocolClient để gửi auth.login.request; sau response thành công, bàn giao **chính kết nối đó** và User công khai cho MainForm. Ví dụ trong một event handler UI, sau khi kết nối đã mở:
