@@ -116,63 +116,65 @@ namespace ChatApp.Server
                 || content.Any(c => char.IsControl(c) && c is not ('\t' or '\r' or '\n')))
                 throw new InvalidOperationException("INVALID_REQUEST");
             var counterref = _db.Collection("counters").Document("messages");
-            var sender = await User(me).GetSnapshotAsync(ct);
-            if(!sender.Exists)
+
+            return await _db.RunTransactionAsync(async tx =>
             {
-                throw new InvalidOperationException("NOT_AUTHENTICATED");
-            }
-            int[] recipients;
-            string conversation;
-            
-            if(receiverId is int peer)
-            {
-                var other = await User(peer).GetSnapshotAsync(ct);
-                var friendship = await _db.Collection("friends").Document(Pair(me, peer)).GetSnapshotAsync(ct);
-                if(!other.Exists)
+                var sender = await tx.GetSnapshotAsync(User(me));
+                if(!sender.Exists)
                 {
-                    throw new InvalidOperationException("NOT_FOUND");
+                    throw new InvalidOperationException("NOT_AUTHENTICATED");
                 }
-                if (me == peer || !friendship.Exists
-                    || friendship.GetValue<string>("Status") != "Accepted")
-                    throw new InvalidOperationException("NOT_FRIENDS");
-                recipients = new[] {peer};
-                conversation = $"direct_{Pair(me, peer)}";
-            }
-            else
-            {
-                var group = await _db.Collection("groups").Document(Key(groupId!.Value)).GetSnapshotAsync(ct);
-                if(!group.Exists)
+                int[] recipients;
+                string conversation;
+                if(receiverId is int peer)
                 {
-                    throw new InvalidOperationException("FORBIDDEN");
+                    var other = await tx.GetSnapshotAsync(User(peer));
+                    var firendship = await tx.GetSnapshotAsync(_db.Collection("friendship").Document(Pair(me, peer)));
+                    if(!other.Exists)
+                    {
+                        throw new InvalidOperationException("NOT_FOUND");
+                    }
+                    if(me == peer || !firendship.Exists
+                        || firendship.GetValue<string>("Status") != "Accepted")
+                        throw new InvalidOperationException("NOT_FRIENDS");
+                    recipients = new [] {peer};
+                    conversation = $"direct_{Pair(me, peer)}";
                 }
-                var members = group.GetValue<int[]>("MemberIds");
-                if(!members.Contains(me))
+                else
                 {
-                    throw new InvalidOperationException("FORBIDDEN");
+                    var group = await tx.GetSnapshotAsync(_db.Collection("groups").Document(Key(groupId!.Value)));
+                    if(!group.Exists)
+                    {
+                        throw new InvalidOperationException("FORBIDDEN");
+                    }
+                    var members = group.GetValue<int[]>("MemberIds");
+                    if(!members.Contains(me))
+                    {
+                        throw new InvalidOperationException("FORBIDDEN");
+                    }
+                    recipients = members.Where(id => id != me).Distinct().ToArray();
+                    conversation = $"group_{Key(groupId!.Value)}";
                 }
-                recipients = members.Where(id => id != me).Distinct().ToArray();
-                conversation = $"group_{Key(groupId!.Value)}";
-            }
-            var counter = await counterref.GetSnapshotAsync(ct);
-            int newId = (counter.Exists ? counter.GetValue<int>("LastId") : 0) + 1;
-            DateTime utc = DateTime.UtcNow;
-            var message = new MessageSummary(newId, me, receiverId, groupId, content, new DateTimeOffset(utc));
-            await counterref.SetAsync(new Dictionary<string, object>
-            {
-                ["LastId"] = newId
-            }, cancellationToken : ct);
-            var messageref = _db.Collection("messages").Document(Key(newId));
-            await messageref.CreateAsync(new Dictionary<string, object?>
-            {
-                ["Id"] = newId,
-                ["ConversationKey"] = conversation,
-                ["SenderId"] = me,
-                ["ReceiverId"] = receiverId,
-                ["GroupId"] = groupId,
-                ["Content"] = content,
-                ["SendTime"] = Timestamp.FromDateTime(utc)
-            }, cancellationToken : ct);
-            return (message, recipients);
+                var counter = await tx.GetSnapshotAsync(counterref);
+                int newId = (counter.Exists ? counter.GetValue<int>("LastId") : 0 ) + 1;
+                DateTime utc = DateTime.UtcNow;
+                var message = new MessageSummary(newId, me, receiverId, groupId, content, new DateTimeOffset(utc));
+                tx.Set(counterref, new Dictionary<string, object>
+                {
+                    ["LastId"] = newId
+                });
+                tx.Create(_db.Collection("messages").Document(Key(newId)), new Dictionary<string, object?>
+                {
+                    ["Id"] = newId,
+                    ["ConversationKey"] = conversation,
+                    ["SenderId"] = me,
+                    ["ReceiverId"] = receiverId,
+                    ["GroupId"] = groupId,
+                    ["Content"] = content,
+                    ["SendTime"] = Timestamp.FromDateTime(utc)
+                });
+                return (message, recipients);
+            }, cancellationToken: ct);
         }
 
         private static MessageSummary ReadMessage(DocumentSnapshot doc)
