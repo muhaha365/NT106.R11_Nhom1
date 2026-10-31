@@ -170,12 +170,55 @@ namespace ChatApp.Server
             return (message, recipients);
         }
 
-        private static MessageSummary ReadMessageAsync(DocumentSnapshot doc)
+        private static MessageSummary ReadMessage(DocumentSnapshot doc)
         => new MessageSummary(doc.GetValue<int>("Id"),
             doc.GetValue<int>("SenderId"),
             doc.GetValue<int>("ReceiverId"),
             doc.GetValue<int>("GroupId"),
             doc.GetValue<string>("Content"),
             new DateTimeOffset(doc.GetValue<Timestamp>("SendTime").ToDateTime()));
+        
+        public async Task<HistoryResult> GetHistoryAsync(int me, int? peerId, int? groupId, int? beforeId, int limit = 10, CancellationToken ct = default)
+        {
+            if(me <=0 || peerId.HasValue == groupId.HasValue
+                || peerId is <= 0 || groupId is <= 0 || peerId == me
+                || beforeId is <=0 || limit is < 1 or > 100)
+                throw new InvalidOperationException("INVALID_REQUEST");
+            var current = await User(me).GetSnapshotAsync(ct);
+            if(!current.Exists)
+            {
+                throw new InvalidOperationException("NOT_AUTHENTICATED");
+            }
+            string conversation;
+            if(peerId is int peer)
+            {
+                var other = await User(peer).GetSnapshotAsync(ct);
+                if(!other.Exists)
+                {
+                    throw new InvalidOperationException("NOT_FOUND");
+                }
+                conversation = $"direct_{Pair(me, peer)}";
+            }
+            else
+            {
+                var group = await _db.Collection("groups").Document(Key(groupId!.Value)).GetSnapshotAsync(ct);
+                if(!group.Exists || !group.GetValue<int[]>("MemberIds").Contains(me))
+                {
+                    throw new InvalidOperationException("FORBIDDEN");
+                }
+                conversation = $"group_{Key(groupId!.Value)}";
+            }
+            var query = _db.Collection("messages")
+                .WhereEqualTo("ConversationKey", conversation)
+                .OrderByDescending("Id");
+            if(beforeId is int before)
+            {
+                query = query.WhereLessThan("Id", before);
+            }
+            var snapshot = await query.Limit(limit + 1).GetSnapshotAsync(ct);
+            var items = snapshot.Documents.Take(limit).Select(ReadMessage).OrderBy(m => m.Id).ToArray();
+            int? next = snapshot.Count() > limit ? items[0].Id : null;
+            return new HistoryResult(items, next);
+        }
     }
 }
