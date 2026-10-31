@@ -173,8 +173,8 @@ namespace ChatApp.Server
         private static MessageSummary ReadMessage(DocumentSnapshot doc)
         => new MessageSummary(doc.GetValue<int>("Id"),
             doc.GetValue<int>("SenderId"),
-            doc.GetValue<int>("ReceiverId"),
-            doc.GetValue<int>("GroupId"),
+            doc.GetValue<int?>("ReceiverId"),
+            doc.GetValue<int?>("GroupId"),
             doc.GetValue<string>("Content"),
             new DateTimeOffset(doc.GetValue<Timestamp>("SendTime").ToDateTime()));
         
