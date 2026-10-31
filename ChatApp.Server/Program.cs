@@ -15,7 +15,7 @@ try
         ?? throw new InvalidOperationException("Chưa cấu hình FIREBASE_PROJECT_ID");
     var database = new Database(projectId);
     await database.CheckConnectionAsync(cancellation.Token);
-    Console.WriteLine("Đã đọc/Firestore thành công");
+    Console.WriteLine("Đã đọc/ghi Firestore thành công");
     ChatServer server = new ChatServer(database);
     await server.Run(5000, cancellation.Token);
 }
