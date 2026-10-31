@@ -157,7 +157,7 @@ namespace ChatApp.Server
                 ["LastId"] = newId
             }, cancellationToken : ct);
             var messageref = _db.Collection("messages").Document(Key(newId));
-            await messageref.CreateAsync(new Dictionary<string, object>
+            await messageref.CreateAsync(new Dictionary<string, object?>
             {
                 ["Id"] = newId,
                 ["ConversationKey"] = conversation,

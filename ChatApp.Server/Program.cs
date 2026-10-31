@@ -11,7 +11,7 @@ Console.CancelKeyPress += (_, e) =>
 Console.WriteLine("Nhấn Ctrl+C để dừng server");
 try
 {
-    string projectId = Environment.GetEnvironmentVariable("chatapp-nhom1-41d53")
+    string projectId = Environment.GetEnvironmentVariable("FIREBASE_PROJECT_ID")
         ?? throw new InvalidOperationException("Chưa cấu hình FIREBASE_PROJECT_ID");
     var database = new Database(projectId);
     await database.CheckConnectionAsync(cancellation.Token);
