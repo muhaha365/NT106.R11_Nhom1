@@ -169,5 +169,13 @@ namespace ChatApp.Server
             }, cancellationToken : ct);
             return (message, recipients);
         }
+
+        private static MessageSummary ReadMessageAsync(DocumentSnapshot doc)
+        => new MessageSummary(doc.GetValue<int>("Id"),
+            doc.GetValue<int>("SenderId"),
+            doc.GetValue<int>("ReceiverId"),
+            doc.GetValue<int>("GroupId"),
+            doc.GetValue<string>("Content"),
+            new DateTimeOffset(doc.GetValue<Timestamp>("SendTime").ToDateTime()));
     }
 }
