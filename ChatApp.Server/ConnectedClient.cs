@@ -13,6 +13,8 @@ public class ConnectedClient : IDisposable
     public TcpClient TcpClient { get;}
     public int Id;
     public PacketIO packetIO;
+    public int? UserId { get; set; }
+    public DateTimeOffset? SessionExpiresAt  { get; set;}
     public ConnectedClient(TcpClient tcpClient, int id)
     {
         Id = id;
