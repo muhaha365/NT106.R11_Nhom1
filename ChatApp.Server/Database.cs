@@ -83,7 +83,7 @@ namespace ChatApp.Server
                 ["LastId"] = newId
             }, cancellationToken: ct);
             var doc = User(newId);
-            await doc.SetAsync(new Dictionary<string, object>
+            await doc.CreateAsync(new Dictionary<string, object>
             {
                 ["Id"] = newId,
                 ["FirebaseUid"] = verifiedUid,
@@ -91,15 +91,83 @@ namespace ChatApp.Server
                 ["DisplayName"] = displayName,
                 ["CreatedAt"] = FieldValue.ServerTimestamp
             }, cancellationToken: ct);
-            await mappingref.SetAsync(new Dictionary<string, object>
+            await mappingref.CreateAsync(new Dictionary<string, object>
             {
                 ["UserId"] = newId
             }, cancellationToken: ct);
-            await nameref.SetAsync(new Dictionary<string, object>
+            await nameref.CreateAsync(new Dictionary<string, object>
             {
                 ["UserId"] = newId
             }, cancellationToken: ct);
             return new UserSummary(newId, username, displayName, false);
+        }
+        public async Task<(MessageSummary Message, int[] recipients)> SendMessageAsync(int me, int? receiverId, int? groupId, string content, CancellationToken ct = default)
+        {
+            if (me <= 0 || receiverId.HasValue == groupId.HasValue
+                || receiverId is <= 0 || groupId is <= 0
+                || string.IsNullOrWhiteSpace(content)
+                || content.EnumerateRunes().Count() > 2000
+                || Encoding.UTF8.GetByteCount(content) > 4000
+                || content.Any(c => char.IsControl(c) && c is not ('\t' or '\r' or '\n')))
+                throw new InvalidOperationException("INVALID_REQUEST");
+            var counterref = _db.Collection("counters").Document("messages");
+            var sender = await User(me).GetSnapshotAsync(ct);
+            if(!sender.Exists)
+            {
+                throw new InvalidOperationException("NOT_AUTHENTICATED");
+            }
+            int[] recipients;
+            string conversation;
+            
+            if(receiverId is int peer)
+            {
+                var other = await User(peer).GetSnapshotAsync(ct);
+                var friendship = await _db.Collection("friends").Document(Pair(me, peer)).GetSnapshotAsync(ct);
+                if(!other.Exists)
+                {
+                    throw new InvalidOperationException("NOT_FOUND");
+                }
+                if (me == peer || !friendship.Exists
+                    || friendship.GetValue<string>("Status") != "Accepted")
+                    throw new InvalidOperationException("NOT_FRIENDS");
+                recipients = new[] {peer};
+                conversation = $"direct_{Pair(me, peer)}";
+            }
+            else
+            {
+                var group = await _db.Collection("groups").Document(Key(groupId!.Value)).GetSnapshotAsync(ct);
+                if(!group.Exists)
+                {
+                    throw new InvalidOperationException("FORBIDDEN");
+                }
+                var members = group.GetValue<int[]>("MemberIds");
+                if(!members.Contains(me))
+                {
+                    throw new InvalidOperationException("FORBIDDEN");
+                }
+                recipients = members.Where(id => id != me).Distinct().ToArray();
+                conversation = $"group_{Key(groupId!.Value)}";
+            }
+            var counter = await counterref.GetSnapshotAsync(ct);
+            int newId = (counter.Exists ? counter.GetValue<int>("LastId") : 0) + 1;
+            DateTime utc = DateTime.UtcNow;
+            var message = new MessageSummary(newId, me, receiverId, groupId, content, new DateTimeOffset(utc));
+            await counterref.SetAsync(new Dictionary<string, object>
+            {
+                ["LastId"] = newId
+            }, cancellationToken : ct);
+            var messageref = _db.Collection("messages").Document(Key(newId));
+            await messageref.CreateAsync(new Dictionary<string, object>
+            {
+                ["Id"] = newId,
+                ["ConversationKey"] = conversation,
+                ["SenderId"] = me,
+                ["ReceiverId"] = receiverId,
+                ["GroupId"] = groupId,
+                ["Content"] = content,
+                ["SendTime"] = Timestamp.FromDateTime(utc)
+            }, cancellationToken : ct);
+            return (message, recipients);
         }
     }
 }
