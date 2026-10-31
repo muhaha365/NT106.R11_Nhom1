@@ -63,43 +63,48 @@ namespace ChatApp.Server
             var mappingref = _db.Collection("authUsers").Document(Uri.EscapeDataString(verifiedUid));
             var nameref = _db.Collection("usernames").Document(username);
             var counterref = _db.Collection("counters").Document("users");
-
-            var mapping = await mappingref.GetSnapshotAsync(ct);
-            if(mapping.Exists)
+            return await _db.RunTransactionAsync(async tx =>
             {
-                int existingId = mapping.GetValue<int>("UserId");
-                var existingUser = await GetUserAsync(existingId, ct);
-                return existingUser ?? throw new InvalidDataException("User mapping exists but user profile not found");
-            }
-            var name = await nameref.GetSnapshotAsync(ct);
-            if(name.Exists)
-            {
-                throw new ArgumentException("USERNAME_TAKEN");
-            }
-            var counter = await counterref.GetSnapshotAsync(ct);
-            int newId = (counter.Exists ? counter.GetValue<int>("LastId") : 0) + 1;
-            await counterref.SetAsync(new Dictionary<string, object>
-            {
-                ["LastId"] = newId
+                var mapping = await tx.GetSnapshotAsync(mappingref);
+                if(mapping.Exists)
+                {
+                    var existing = await tx.GetSnapshotAsync(User(mapping.GetValue<int>("UserId")));
+                    if(!existing.Exists)
+                    {
+                        throw new InvalidDataException("Hồ sơ không nhất quán");
+                    }
+                    return ReadUser(existing);
+                }
+                var name = await tx.GetSnapshotAsync(nameref);
+                if(name.Exists)
+                {
+                    throw new ArgumentException("USERNAME_TAKEN");
+                }
+                
+                var counter = await tx.GetSnapshotAsync(counterref);
+                int newId = (counter.Exists ? counter.GetValue<int>("LastId") : 0) + 1;
+                tx.Set(counterref, new Dictionary<string, object>
+                {
+                    ["LastId"] = newId
+                });
+                tx.Create(User(newId), new Dictionary<string, object>
+                {
+                    ["Id"] = newId,
+                    ["FirebaseUid"] = verifiedUid,
+                    ["Username"] = username,
+                    ["DisplayName"] = displayName,
+                    ["CreatedAt"] = FieldValue.ServerTimestamp
+                });
+                tx.Create(mappingref, new Dictionary<string, object>
+                {
+                    ["UserId"] = newId
+                });
+                tx.Create(nameref, new Dictionary<string, object>
+                {
+                    ["UserId"] = newId
+                });
+                return new UserSummary(newId, username, displayName, false);
             }, cancellationToken: ct);
-            var doc = User(newId);
-            await doc.CreateAsync(new Dictionary<string, object>
-            {
-                ["Id"] = newId,
-                ["FirebaseUid"] = verifiedUid,
-                ["Username"] = username,
-                ["DisplayName"] = displayName,
-                ["CreatedAt"] = FieldValue.ServerTimestamp
-            }, cancellationToken: ct);
-            await mappingref.CreateAsync(new Dictionary<string, object>
-            {
-                ["UserId"] = newId
-            }, cancellationToken: ct);
-            await nameref.CreateAsync(new Dictionary<string, object>
-            {
-                ["UserId"] = newId
-            }, cancellationToken: ct);
-            return new UserSummary(newId, username, displayName, false);
         }
         public async Task<(MessageSummary Message, int[] recipients)> SendMessageAsync(int me, int? receiverId, int? groupId, string content, CancellationToken ct = default)
         {
