@@ -13,6 +13,11 @@ namespace ChatApp.Server;
 public class ChatServer
 {
     private readonly List<ConnectedClient> _clients = new List<ConnectedClient>();
+    private readonly Database _database;
+    public ChatServer(Database database)
+    {
+        _database = database;
+    }
     private int _nextId = 0;
     public async Task Run(int port, CancellationToken ct)
     {
