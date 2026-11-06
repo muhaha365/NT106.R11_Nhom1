@@ -1,14 +1,16 @@
-﻿using System;
+﻿using ChatApp.Shared.Contracts;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Data.Common;
 using System.Drawing;
-using System.Text;
-using System.Windows.Forms;
-using System.Text.RegularExpressions;
 // TUI VỪA THÊM 1: Thêm thư viện này để dùng được hàm băm mật khẩu
 using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Windows.Forms;
+using static ChatApp.Client.AuthMessages;
 
 namespace ChatApp.Client.Forms
 {
@@ -85,28 +87,56 @@ namespace ChatApp.Client.Forms
 
             try
             {
-                // 3. Kết nối TCP tới Server
-                await _connection.ConnectAsync("127.0.0.1", 5000);
-                if (IsDisposed || Disposing) return;
+                var firebase = new FirebaseAuthClient(
+                    Environment.GetEnvironmentVariable("FIREBASE_WEB_API_KEY") ?? "");
+                using var protocol = new ProtocolClient();
 
-                // 4. Băm mật khẩu để gửi đi an toàn
-                string passwordHash = HashSHA256(password);
+                // Chỉ gọi signUp khi người dùng thực sự muốn tạo tài khoản mới.
+                string idToken = chkExistingAccount.Checked
+                    ? await firebase.LoginAsync(txtEmail.Text.Trim(), txtPassword.Text)
+                    : await firebase.RegisterAsync(txtEmail.Text.Trim(), txtPassword.Text);
 
-                btnRegister.Text = "Đang gửi yêu cầu đăng ký...";
+                // Từ thời điểm đã nhận token, mọi lần thử tiếp phải đi đường đăng nhập.
+                chkExistingAccount.Checked = true;
+                await protocol.ConnectAsync("127.0.0.1", 5000);
+                var result = await protocol.RequestAsync<AuthenticationResult>(
+                    "auth.firebase.request",
+                    new FirebaseLoginRequest(idToken, txtUsername.Text.Trim(), txtDisplayName.Text.Trim()));
 
-                // Tới Giai đoạn 4, nhóm bạn sẽ tạo Packet JSON và gửi đi ở đây:
-                // var registerPacket = new { Type = "REGISTER", Username = username, Password = passwordHash, DisplayName = displayName };
-                // await _connection.SendAsync(registerPacket);
+                // Đóng phiên đăng ký để trở lại LoginForm; server giải phóng user trước khi trả lời.
+                await protocol.RequestAsync<EmptyResult>("auth.logout.request", new { });
+                MessageBox.Show(this, $"Đã hoàn tất hồ sơ {result.User.Username}. Bạn có thể đăng nhập.");
+                Close();
             }
-            catch (Exception ex)
+            catch (ProtocolRequestException ex) when (ex.Code == "PROFILE_REQUIRED")
             {
-                if (IsDisposed || Disposing) return;
-                MessageBox.Show(this, $"Lỗi kết nối tới Server: {ex.Message}");
-                btnRegister.Enabled = true;
-                btnRegister.Text = "Đăng ký";
+                MessageBox.Show(this,
+                    "Tài khoản Firebase đã có. Mở Đăng ký, chọn Hoàn tất hồ sơ và nhập lại email/mật khẩu.");
+            }
+            catch (FirebaseSignInException ex)
+            {
+                MessageBox.Show(this, FirebaseErrorMessage(ex.Code));
+            }
+            catch (ProtocolRequestException ex)
+            {
+                MessageBox.Show(this, ex.Message);
+            }
+            catch (ArgumentException ex)
+            {
+                MessageBox.Show(this, ex.Message);
+            }
+            catch (Exception)
+            {
+                MessageBox.Show(this, "Chưa đăng nhập được. Kiểm tra kết nối và thử lại.");
+            }
+            finally
+            {
+                if(!IsDisposed || Disposing)
+                {
+                    btnRegister.Enabled = true;
+                }
             }
         }
-
         private void txtPassword_TextChanged(object sender, EventArgs e)
         {
 
