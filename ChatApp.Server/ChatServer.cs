@@ -55,9 +55,12 @@ public class ChatServer
         finally
         {
             listener.Stop();
-            foreach (ConnectedClient client in _clients)
+            lock(_sessionlock)
             {
-                client.Dispose();
+                foreach (ConnectedClient client in _clients)
+                {
+                    client.Dispose();
+                }
             }
         }
     }
@@ -115,7 +118,7 @@ public class ChatServer
                     }
                     break;
                 }
-                if(packet.Type == "auth.firebase.logout")
+                if(packet.Type == "auth.logout.request")
                 {
                     ReleaseSession(sender);
                     await ReplyAsync(sender, packet, new EmptyResult(), null, null, ct);
@@ -256,7 +259,7 @@ public class ChatServer
             {
                 if(string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.DisplayName))
                 {
-                    throw new InvalidDataException("PROFILE_REQUIRED");
+                    throw new InvalidOperationException("PROFILE_REQUIRED");
                 }
                 user = await _database.EnsureProfileAsync(verified.Uid, request.Username, request.DisplayName, ct);
             }
@@ -271,6 +274,7 @@ public class ChatServer
                     throw new InvalidOperationException("ALREADY_ONLINE");
                 }
                 client.UserId = user.Id;
+                client.SessionExpiresAt = expiresAt;
                 _onlineUsers.Add(user.Id, client);
             }
             result = new AuthenticationResult(user with { IsOnline = true });
@@ -303,7 +307,7 @@ public class ChatServer
         {
             Console.Error.WriteLine($"Auth thất bại: {ex.GetType().Name}");
             code = "INTERNAL_ERROR";
-            message = "Server chưa hoàn tất xác thực. HÃy thử lại sau:";
+            message = "Server chưa hoàn tất xác thực. Hãy thử lại sau:";
         }
         await ReplyAsync(client, packet, result, code, message, ct);
     }

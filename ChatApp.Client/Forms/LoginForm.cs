@@ -44,8 +44,7 @@ namespace ChatApp.Client.Forms
             btn_connect.Enabled = false;
             try
             {
-                var firebase = new FirebaseAuthClient(
-                    Environment.GetEnvironmentVariable("FIREBASE_WEB_API_KEY") ?? "");
+                var firebase = new FirebaseAuthClient(Environment.GetEnvironmentVariable("FIREBASE_WEB_API_KEY") ?? "");
                 string idToken = await firebase.LoginAsync(txtEmail.Text.Trim(), txtPassword.Text);
                 await protocol.ConnectAsync("127.0.0.1", 5000);
                 var result = await protocol.RequestAsync<AuthenticationResult>(

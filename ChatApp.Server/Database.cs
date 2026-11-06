@@ -79,7 +79,7 @@ namespace ChatApp.Server
                 var name = await tx.GetSnapshotAsync(nameref);
                 if(name.Exists)
                 {
-                    throw new ArgumentException("USERNAME_TAKEN");
+                    throw new InvalidOperationException("USERNAME_TAKEN");
                 }
                 
                 var counter = await tx.GetSnapshotAsync(counterref);

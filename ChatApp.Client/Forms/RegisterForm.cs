@@ -134,6 +134,7 @@ namespace ChatApp.Client.Forms
                 if(!IsDisposed || Disposing)
                 {
                     btnRegister.Enabled = true;
+                    btnRegister.Text = "Sign Up";
                 }
             }
         }
