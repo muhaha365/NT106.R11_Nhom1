@@ -8,6 +8,9 @@ using System.Diagnostics;
 using ChatApp.Shared.Contracts;
 using FirebaseAdmin.Auth;
 using System.ComponentModel;
+using Google.Protobuf.WellKnownTypes;
+using ChatApp.Shared.Models;
+using Google.Apis.Auth.OAuth2;
 namespace ChatApp.Server;
 
 /// <summary>
@@ -36,7 +39,10 @@ public class ChatServer
             {
                 TcpClient tcpClient = await listener.AcceptTcpClientAsync(ct);
                 ConnectedClient client = new ConnectedClient(tcpClient, _nextId++);
-                _clients.Add(client);
+                lock(_sessionlock)
+                {
+                    _clients.Add(client);
+                }
                 Console.WriteLine($"Client {tcpClient.Client.RemoteEndPoint} đã kết nối.");
                 
                 _ = HandleClientAsync(client, ct);
@@ -57,7 +63,12 @@ public class ChatServer
     }
     private ConnectedClient[] GetConnectedClients()
     {
-        return _clients.ToArray();
+        lock(_sessionlock)
+        {
+            return _clients.Where(client => client.UserId is not null 
+                && client.SessionExpiresAt is DateTimeOffset expiry 
+                && expiry > DateTimeOffset.UtcNow).ToArray();
+        }
     }
     private async Task HandleClientAsync(ConnectedClient sender, CancellationToken ct)
     {
@@ -70,6 +81,60 @@ public class ChatServer
                 {
                     Console.WriteLine($"Client {sender.Id} đã ngắt kết nối.");
                     break;
+                }
+                if(packet.Version != 1 || string.IsNullOrWhiteSpace(packet.Type))
+                {
+                    break;
+                }
+                bool isRequest = packet.Type.EndsWith(".request", StringComparison.Ordinal);
+                if(isRequest && !Guid.TryParse(packet.RequestId, out _))
+                {
+                    break;
+                }
+                
+                if(sender.UserId is not null && (sender.SessionExpiresAt is null || DateTimeOffset.UtcNow >= sender.SessionExpiresAt))
+                {
+                    if(isRequest)
+                    {
+                        await ReplyAsync(sender, packet, null, "NOT_AUTHENTICATED", "Phiên hết hạn. Hãy đăng nhập lại", ct);
+                    }
+                    break;
+                }
+
+                if(packet.Type == "auth.firebase.request")
+                {
+                    await HandleFirebaseLoginAsync(sender, packet, ct);
+                    continue;
+                }
+                
+                if(sender.UserId is null)
+                {
+                    if(isRequest)
+                    {
+                        await ReplyAsync(sender, packet, null, "NOT_AUTHENTICATED", "Bạn cần đăng nhập.", ct);
+                    }
+                    break;
+                }
+                if(packet.Type == "auth.firebase.logout")
+                {
+                    ReleaseSession(sender);
+                    await ReplyAsync(sender, packet, new EmptyResult(), null, null, ct);
+                    break;
+                }
+
+                if(isRequest)
+                {
+                    await sender.SendPacketAsync(new Packet
+                    {
+                        Type = "system.error.response",
+                        RequestId = packet.RequestId,
+                        Payload = JsonSerializer.SerializeToElement(new
+                        {
+                            Code = "NOT_IMPLEMENTED",
+                            Message = "Chức năng này chưa phát triển"
+                        })
+                    }, ct);
+                    continue;
                 }
                 if (packet.Type != "chat")
                 {
@@ -127,6 +192,7 @@ public class ChatServer
         finally
         {
             _clients.Remove(sender);
+            ReleaseSession(sender);
             sender.Dispose();
         }
     }
