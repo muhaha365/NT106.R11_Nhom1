@@ -87,7 +87,6 @@ namespace ChatApp.Client.Forms
 
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
-            // _connection.Dispose();
             base.OnFormClosed(e);
         }
 
