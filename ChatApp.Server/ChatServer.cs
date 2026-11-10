@@ -4,6 +4,13 @@ using System.Text;
 using System.Text.Json;
 using ChatApp.Shared;
 using System.Net.Sockets;
+using System.Diagnostics;
+using ChatApp.Shared.Contracts;
+using FirebaseAdmin.Auth;
+using System.ComponentModel;
+using Google.Protobuf.WellKnownTypes;
+using ChatApp.Shared.Models;
+using Google.Apis.Auth.OAuth2;
 namespace ChatApp.Server;
 
 /// <summary>
@@ -19,6 +26,8 @@ public class ChatServer
         _database = database;
     }
     private int _nextId = 0;
+    private readonly object _sessionlock = new object();
+    private readonly Dictionary<int, ConnectedClient> _onlineUsers = new();
     public async Task Run(int port, CancellationToken ct)
     {
         TcpListener listener = new TcpListener(IPAddress.Loopback, port);
@@ -30,7 +39,10 @@ public class ChatServer
             {
                 TcpClient tcpClient = await listener.AcceptTcpClientAsync(ct);
                 ConnectedClient client = new ConnectedClient(tcpClient, _nextId++);
-                _clients.Add(client);
+                lock(_sessionlock)
+                {
+                    _clients.Add(client);
+                }
                 Console.WriteLine($"Client {tcpClient.Client.RemoteEndPoint} đã kết nối.");
                 
                 _ = HandleClientAsync(client, ct);
@@ -43,15 +55,23 @@ public class ChatServer
         finally
         {
             listener.Stop();
-            foreach (ConnectedClient client in _clients)
+            lock(_sessionlock)
             {
-                client.Dispose();
+                foreach (ConnectedClient client in _clients)
+                {
+                    client.Dispose();
+                }
             }
         }
     }
     private ConnectedClient[] GetConnectedClients()
     {
-        return _clients.ToArray();
+        lock(_sessionlock)
+        {
+            return _clients.Where(client => client.UserId is not null 
+                && client.SessionExpiresAt is DateTimeOffset expiry 
+                && expiry > DateTimeOffset.UtcNow).ToArray();
+        }
     }
     private async Task HandleClientAsync(ConnectedClient sender, CancellationToken ct)
     {
@@ -64,6 +84,60 @@ public class ChatServer
                 {
                     Console.WriteLine($"Client {sender.Id} đã ngắt kết nối.");
                     break;
+                }
+                if(packet.Version != 1 || string.IsNullOrWhiteSpace(packet.Type))
+                {
+                    break;
+                }
+                bool isRequest = packet.Type.EndsWith(".request", StringComparison.Ordinal);
+                if(isRequest && !Guid.TryParse(packet.RequestId, out _))
+                {
+                    break;
+                }
+                
+                if(sender.UserId is not null && (sender.SessionExpiresAt is null || DateTimeOffset.UtcNow >= sender.SessionExpiresAt))
+                {
+                    if(isRequest)
+                    {
+                        await ReplyAsync(sender, packet, null, "NOT_AUTHENTICATED", "Phiên hết hạn. Hãy đăng nhập lại", ct);
+                    }
+                    break;
+                }
+
+                if(packet.Type == "auth.firebase.request")
+                {
+                    await HandleFirebaseLoginAsync(sender, packet, ct);
+                    continue;
+                }
+                
+                if(sender.UserId is null)
+                {
+                    if(isRequest)
+                    {
+                        await ReplyAsync(sender, packet, null, "NOT_AUTHENTICATED", "Bạn cần đăng nhập.", ct);
+                    }
+                    break;
+                }
+                if(packet.Type == "auth.logout.request")
+                {
+                    ReleaseSession(sender);
+                    await ReplyAsync(sender, packet, new EmptyResult(), null, null, ct);
+                    break;
+                }
+
+                if(isRequest)
+                {
+                    await sender.SendPacketAsync(new Packet
+                    {
+                        Type = "system.error.response",
+                        RequestId = packet.RequestId,
+                        Payload = JsonSerializer.SerializeToElement(new
+                        {
+                            Code = "NOT_IMPLEMENTED",
+                            Message = "Chức năng này chưa phát triển"
+                        })
+                    }, ct);
+                    continue;
                 }
                 if (packet.Type != "chat")
                 {
@@ -121,7 +195,120 @@ public class ChatServer
         finally
         {
             _clients.Remove(sender);
+            ReleaseSession(sender);
             sender.Dispose();
         }
+    }
+
+    private static async Task ReplyAsync(ConnectedClient client, Packet request, object? data, string? code, string? message, CancellationToken ct = default)
+    {
+        var payload = new
+        {
+            Success = code is null,
+            Data = code is null ? data : null,
+            Error = code is null ? null : new {Code = code, Message = message}
+        };
+        await client.SendPacketAsync(new Packet
+        {
+            Type = $"{request.Type[..^8]}.response",
+            RequestId = request.RequestId,
+            Payload = JsonSerializer.SerializeToElement(payload)
+        }, ct);
+    }
+    private void ReleaseSession(ConnectedClient client)
+    {
+        lock(_sessionlock)
+        {
+            if(client.UserId is int id && _onlineUsers.TryGetValue(id, out var owner) && ReferenceEquals(client, owner))
+            {
+                _onlineUsers.Remove(id);
+            }
+            client.UserId = null;
+            client.SessionExpiresAt = null;
+        }
+    }
+    private async Task HandleFirebaseLoginAsync(ConnectedClient client, Packet packet, CancellationToken ct = default)
+    {
+        AuthenticationResult? result = null;
+        string? code = null;
+        string? message = null;
+        try
+        {
+            if(client.UserId is not null)
+            {
+                throw new InvalidOperationException("ALREADY_AUTHENTICATED");
+            }
+            if(packet.Payload is not JsonElement payload || payload.ValueKind != JsonValueKind.Object)
+            {
+                throw new ArgumentException("INVALID_REQUEST");
+            }
+            var request = JsonSerializer.Deserialize<FirebaseLoginRequest>(payload);
+            if(request is null || string.IsNullOrWhiteSpace(request.IdToken) || request.IdToken.Length > 16384)
+            {
+                throw new ArgumentException("INVALID_REQUEST");
+            }
+            var verified = await FirebaseAuth.DefaultInstance.VerifyIdTokenAsync(request.IdToken, checkRevoked: true, cancellationToken: ct);
+            var account = await FirebaseAuth.DefaultInstance.GetUserAsync(verified.Uid, ct);
+            if(account.Disabled)
+            {
+                throw new InvalidOperationException("USER_DISABLED");
+            }
+            var expiresAt = DateTimeOffset.FromUnixTimeSeconds(verified.ExpirationTimeSeconds);
+            var user = await _database.GetUserByFirebaseUidAsync(verified.Uid, ct);
+            if(user is null)
+            {
+                if(string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.DisplayName))
+                {
+                    throw new InvalidOperationException("PROFILE_REQUIRED");
+                }
+                user = await _database.EnsureProfileAsync(verified.Uid, request.Username, request.DisplayName, ct);
+            }
+            lock(_sessionlock)
+            {
+                if(DateTimeOffset.UtcNow >= expiresAt)
+                {
+                    throw new InvalidOperationException("INVALID_TOKEN");
+                }
+                if(_onlineUsers.ContainsKey(user.Id))
+                {
+                    throw new InvalidOperationException("ALREADY_ONLINE");
+                }
+                client.UserId = user.Id;
+                client.SessionExpiresAt = expiresAt;
+                _onlineUsers.Add(user.Id, client);
+            }
+            result = new AuthenticationResult(user with { IsOnline = true });
+        }
+        catch (OperationCanceledException) when(ct.IsCancellationRequested) { throw; }
+        catch (FirebaseAuthException ex)
+        {
+            bool rejected = ex.AuthErrorCode is AuthErrorCode.InvalidIdToken
+                or AuthErrorCode.ExpiredIdToken or AuthErrorCode.RevokedIdToken
+                or AuthErrorCode.UserNotFound;
+            code = rejected ? "INVALID_TOKEN" : "AUTH_UNAVAILABLE";
+            message = rejected ? "Phiên Firebase không hợp lệ. Hãy đăng nhập lại." : "Chưa thể xác minh tài khoản. Hãy thử lại sau.";
+        }
+        catch (JsonException) { code = "INVALID_REQUEST"; message = "Payload không hợp lệ";}
+        catch (InvalidOperationException ex) when (ex.Message is "PROFILE_REQUIRED"
+            or "USERNAME_TAKEN" or "ALREADY_AUTHENTICATED" or "ALREADY_ONLINE" or "INVALID_TOKEN"
+            or "USER_DISABLED")
+        {
+            code = ex.Message;
+            message = code switch
+            {
+                "PROFILE_REQUIRED" => "Tài khoản đã có, cần hoàn tất hồ sơ ứng dụng.",
+                "USERNAME_TAKEN" => "Tên người dùng đã được sử dụng.",
+                "ALREADY_ONLINE" => "Tài khoản đang đăng nhập ở kết nối khác.",
+                "INVALID_TOKEN" => "Tài khoản đã bị vô hiệu hóa.",
+                _ => "Kết nối này dã đăng nhập."
+            };
+        }
+        catch(Exception ex)
+        {
+            Console.Error.WriteLine($"Auth thất bại: {ex.GetType().Name}");
+            code = "INTERNAL_ERROR";
+            message = "Server chưa hoàn tất xác thực. Hãy thử lại sau:";
+        }
+        await ReplyAsync(client, packet, result, code, message, ct);
     }
 }

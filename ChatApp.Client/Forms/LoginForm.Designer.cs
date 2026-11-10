@@ -37,7 +37,7 @@
             label3 = new Label();
             label2 = new Label();
             label1 = new Label();
-            txtUsername = new TextBox();
+            txtEmail = new TextBox();
             label8 = new Label();
             label9 = new Label();
             label10 = new Label();
@@ -151,12 +151,12 @@
             label1.TabIndex = 0;
             label1.Text = "NEXUS X";
             // 
-            // txtUsername
+            // txtEmail
             // 
-            txtUsername.Location = new Point(583, 201);
-            txtUsername.Name = "txtUsername";
-            txtUsername.Size = new Size(306, 23);
-            txtUsername.TabIndex = 2;
+            txtEmail.Location = new Point(583, 201);
+            txtEmail.Name = "txtEmail";
+            txtEmail.Size = new Size(306, 23);
+            txtEmail.TabIndex = 2;
             // 
             // label8
             // 
@@ -186,11 +186,11 @@
             label10.AutoSize = true;
             label10.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
             label10.ForeColor = Color.DarkGray;
-            label10.Location = new Point(436, 202);
+            label10.Location = new Point(488, 201);
             label10.Name = "label10";
-            label10.Size = new Size(107, 19);
+            label10.Size = new Size(45, 19);
             label10.TabIndex = 8;
-            label10.Text = "Tên đăng nhập";
+            label10.Text = "Email";
             // 
             // label11
             // 
@@ -261,7 +261,7 @@
             Controls.Add(label10);
             Controls.Add(label9);
             Controls.Add(label8);
-            Controls.Add(txtUsername);
+            Controls.Add(txtEmail);
             Controls.Add(btn_connect);
             Controls.Add(panel1);
             Font = new Font("Segoe UI", 9F, FontStyle.Bold);
@@ -287,7 +287,7 @@
         private Label label5;
         private Label label4;
         private Label label3;
-        private TextBox txtUsername;
+        private TextBox txtEmail;
         private Label label8;
         private Label label9;
         private Label label10;

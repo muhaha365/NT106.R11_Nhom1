@@ -1,5 +1,7 @@
 ﻿using System.Net.Sockets;
 using ChatApp.Server;
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
 
 using var cancellation = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) =>
@@ -16,6 +18,11 @@ try
     var database = new Database(projectId);
     await database.CheckConnectionAsync(cancellation.Token);
     Console.WriteLine("Đã đọc/ghi Firestore thành công");
+    FirebaseApp.Create(new AppOptions
+    {
+        Credential = GoogleCredential.GetApplicationDefault(),
+        ProjectId = projectId
+    });
     ChatServer server = new ChatServer(database);
     await server.Run(5000, cancellation.Token);
 }

@@ -2,12 +2,13 @@ using System.Security.Cryptography;
 using ChatApp.Shared;
 using System.Text;
 using System.Text.Json;
+using ChatApp.Shared.Contracts;
+using static ChatApp.Client.AuthMessages;
 
 namespace ChatApp.Client.Forms
 {
     public partial class LoginForm : Form
     {
-        private readonly ClientConnection _connection = new();
         public LoginForm()
         {
             InitializeComponent();
@@ -30,8 +31,8 @@ namespace ChatApp.Client.Forms
         private async void btn_connect_Click(object sender, EventArgs e)
         {
 
-            string username = txtUsername.Text.Trim();
-            string password = txtPassword.Text.Trim();
+            string username = txtEmail.Text.Trim();
+            string password = txtPassword.Text;
 
             if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
             {
@@ -39,53 +40,53 @@ namespace ChatApp.Client.Forms
                 return;
             }
 
+            ProtocolClient? protocol = new ProtocolClient();
             btn_connect.Enabled = false;
-            btn_connect.Text = "Đang kết nối...";
-
             try
             {
-                await _connection.ConnectAsync("127.0.0.1", 5000);
-                if (IsDisposed || Disposing) return;
+                var firebase = new FirebaseAuthClient(Environment.GetEnvironmentVariable("FIREBASE_WEB_API_KEY") ?? "");
+                string idToken = await firebase.LoginAsync(txtEmail.Text.Trim(), txtPassword.Text);
+                await protocol.ConnectAsync("127.0.0.1", 5000);
+                var result = await protocol.RequestAsync<AuthenticationResult>(
+                    "auth.firebase.request", new FirebaseLoginRequest(idToken, null, null));
 
-                string passwordHash = HashSHA256(password);
-                btn_connect.Text = "Đang xác thực...";
-
-                btn_connect.Text = "Đã kết nối TCP";
-
-                Packet packet = new Packet
-                {
-                    Type = "chat",
-                    Payload = JsonSerializer.SerializeToElement("Xin chào từ client!")
-                };
-
-                await _connection.SendAsync(packet);
-                await _connection.ReceiveAsync();
-
-                if (IsDisposed || Disposing) return;
-                MessageBox.Show(this, "Kết nối tới server đã đóng");
+                using var main = new MainForm(protocol, result.User);
+                protocol = null; // MainForm sở hữu kết nối từ đây, DisposeConnection đã có sẵn.
+                Hide();
+                try { main.ShowDialog(); }
+                finally { if (!IsDisposed) Show(); }
             }
-
-            catch (Exception ex)
+            catch (ProtocolRequestException ex) when (ex.Code == "PROFILE_REQUIRED")
             {
-                if (IsDisposed || Disposing) return;
-                MessageBox.Show(this, $"Không kết nối được: {ex.Message}");
-                btn_connect.Enabled = true;
-                btn_connect.Text = "Sign In";
+                MessageBox.Show(this,
+                    "Tài khoản Firebase đã có. Mở Đăng ký, chọn Hoàn tất hồ sơ và nhập lại email/mật khẩu.");
+            }
+            catch (FirebaseSignInException ex)
+            {
+                MessageBox.Show(this, FirebaseErrorMessage(ex.Code));
+            }
+            catch (ProtocolRequestException ex)
+            {
+                MessageBox.Show(this, ex.Message);
+            }
+            catch (ArgumentException ex)
+            {
+                MessageBox.Show(this, ex.Message);
+            }
+            catch (Exception)
+            {
+                MessageBox.Show(this, "Chưa đăng nhập được. Kiểm tra kết nối và thử lại.");
             }
             finally
             {
-                if (!IsDisposed && !Disposing)
-                {
-                    btn_connect.Enabled = true;
-                    btn_connect.Text = "Sign In";
-                }
+                protocol?.Dispose();
+                if (!IsDisposed) { btn_connect.Enabled = true; btn_connect.Text = "Sign In"; }
             }
         }
 
 
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
-            _connection.Dispose();
             base.OnFormClosed(e);
         }
 

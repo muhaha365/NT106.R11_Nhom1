@@ -75,14 +75,16 @@ namespace ChatApp.Server
                     }
                     return ReadUser(existing);
                 }
+                // Đọc tất cả dữ liệu cần kiểm tra trước khi ghi.
                 var name = await tx.GetSnapshotAsync(nameref);
                 if(name.Exists)
                 {
-                    throw new ArgumentException("USERNAME_TAKEN");
+                    throw new InvalidOperationException("USERNAME_TAKEN");
                 }
                 
                 var counter = await tx.GetSnapshotAsync(counterref);
                 int newId = (counter.Exists ? counter.GetValue<int>("LastId") : 0) + 1;
+                
                 tx.Set(counterref, new Dictionary<string, object>
                 {
                     ["LastId"] = newId
@@ -226,6 +228,17 @@ namespace ChatApp.Server
             var items = snapshot.Documents.Take(limit).Select(ReadMessage).OrderBy(m => m.Id).ToArray();
             int? next = snapshot.Count() > limit ? items[0].Id : null;
             return new HistoryResult(items, next);
+        }
+        public async Task<UserSummary?> GetUserByFirebaseUidAsync(string verifiedUid, CancellationToken ct = default)
+        {
+            var mappingref = _db.Collection("authUsers").Document(Uri.EscapeDataString(verifiedUid));
+            var mapping = await mappingref.GetSnapshotAsync(ct);
+            if(!mapping.Exists)
+            {
+                return null;
+            }
+            int id = mapping.GetValue<int>("UserId");
+            return await GetUserAsync(id, ct) ?? throw new InvalidDataException("Có mapping nhưng thiếu hồ sơ user.");
         }
     }
 }
