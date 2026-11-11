@@ -144,7 +144,7 @@ namespace ChatApp.Client.Forms
             }
             catch (Exception)
             {
-                MessageBox.Show(this, "Chưa đăng nhập được. Kiểm tra kết nối và thử lại.");
+                MessageBox.Show(this, "Chưa hoàn tất đăng ký hoặc hồ sơ. Kiểm tra kết nối và thử lại.");
             }
             finally
             {
