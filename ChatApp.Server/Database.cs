@@ -54,7 +54,7 @@ namespace ChatApp.Server
             username = username.Trim().ToLowerInvariant();
             displayName = displayName.Trim();
             if(string.IsNullOrWhiteSpace(verifiedUid)
-                || !Regex.IsMatch(username, "^[a-zA-Z0-9_]{3,20}$")
+                || !Regex.IsMatch(username, @"\A[a-zA-Z0-9_]{3,20}\z")
                 || displayName.EnumerateRunes().Count() is < 1 or > 100
                 || displayName.Any(char.IsControl))
             {

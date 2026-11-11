@@ -57,28 +57,45 @@ namespace ChatApp.Client.Forms
         // TUI VỪA THÊM 4: Thêm chữ "async" vào ngay sau chữ "private" ở dòng này
         private async void button1_Click_1(object sender, EventArgs e)
         {
-            string username = txtUsername.Text.Trim();
+            string email = txtEmail.Text.Trim();
+            string username = txtUsername.Text.Trim().ToLowerInvariant();
             string displayName = txtDisplayName.Text.Trim();
-            string password = txtPassword.Text.Trim();
-            string confirmPassword = txtConfirmPassword.Text.Trim();
 
-            // 1. Kiểm tra rỗng
-            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(displayName) ||
-                string.IsNullOrEmpty(password) || string.IsNullOrEmpty(confirmPassword))
+            // Giữ nguyên mật khẩu, kể cả khoảng trắng.
+            string password = txtPassword.Text;
+            string confirmPassword = txtConfirmPassword.Text;
+
+            // Ghi nhận chế độ tại thời điểm nhấn nút.
+            bool completingProfile = chkExistingAccount.Checked;
+
+            if (string.IsNullOrWhiteSpace(email)
+                || string.IsNullOrWhiteSpace(username)
+                || string.IsNullOrWhiteSpace(displayName)
+                || string.IsNullOrEmpty(password)
+                || string.IsNullOrEmpty(confirmPassword))
             {
-                MessageBox.Show(this, "Vui lòng điền đầy đủ tất cả các thông tin!");
+                MessageBox.Show(this, "Vui lòng điền đầy đủ thông tin.");
                 return;
             }
-            if (!Regex.IsMatch(username, "^[a-zA-Z0-9]+$"))
+
+            if (!Regex.IsMatch(username, @"\A[a-zA-Z0-9_]{3,20}\z"))
             {
-                MessageBox.Show(this, "Tên đăng nhập phải viết liền, không dấu và không chứa ký tự đặc biệt!");
+                MessageBox.Show(this,
+                    "Tên người dùng phải có 3–20 ký tự, chỉ gồm chữ, số và dấu gạch dưới.");
                 return;
             }
 
-            // 2. Kiểm tra mật khẩu khớp nhau
-            if (password != confirmPassword)
+            if (displayName.EnumerateRunes().Count() > 100
+                || displayName.Any(char.IsControl))
             {
-                MessageBox.Show(this, "Mật khẩu nhập lại không khớp!");
+                MessageBox.Show(this,
+                    "Tên hiển thị tối đa 100 ký tự và không chứa ký tự điều khiển.");
+                return;
+            }
+
+            if (!string.Equals(password, confirmPassword, StringComparison.Ordinal))
+            {
+                MessageBox.Show(this, "Mật khẩu nhập lại không khớp.");
                 return;
             }
 
@@ -92,16 +109,16 @@ namespace ChatApp.Client.Forms
                 using var protocol = new ProtocolClient();
 
                 // Chỉ gọi signUp khi người dùng thực sự muốn tạo tài khoản mới.
-                string idToken = chkExistingAccount.Checked
-                    ? await firebase.LoginAsync(txtEmail.Text.Trim(), txtPassword.Text)
-                    : await firebase.RegisterAsync(txtEmail.Text.Trim(), txtPassword.Text);
+                string idToken = completingProfile
+                    ? await firebase.LoginAsync(email, password)
+                    : await firebase.RegisterAsync(email, password);
 
                 // Từ thời điểm đã nhận token, mọi lần thử tiếp phải đi đường đăng nhập.
                 chkExistingAccount.Checked = true;
                 await protocol.ConnectAsync("127.0.0.1", 5000);
                 var result = await protocol.RequestAsync<AuthenticationResult>(
                     "auth.firebase.request",
-                    new FirebaseLoginRequest(idToken, txtUsername.Text.Trim(), txtDisplayName.Text.Trim()));
+                    new FirebaseLoginRequest(idToken, username, displayName));
 
                 // Đóng phiên đăng ký để trở lại LoginForm; server giải phóng user trước khi trả lời.
                 await protocol.RequestAsync<EmptyResult>("auth.logout.request", new { });
