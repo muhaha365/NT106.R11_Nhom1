@@ -13,6 +13,7 @@ public partial class MainForm : Form
     private UserSummary? _currentUser;
     private bool _connecting;
     private bool _closing;
+    private bool CanSendChat =>_protocol.IsConnected && _currentUser is not null;
 
     public MainForm() : this(new ProtocolClient(), null) { }
 
@@ -74,7 +75,11 @@ public partial class MainForm : Form
     {
         string message = txtMessage.Text;
         if (string.IsNullOrWhiteSpace(message)) { txtMessage.Focus(); return; }
-        if (!_protocol.IsConnected) { SetStatus("Hãy kết nối tới máy chủ trước."); return; }
+        if (!CanSendChat)
+        {
+            SetStatus("Bạn cần đăng nhập trước khi gửi tin nhắn.");
+            return;
+        }
         btn_send.Enabled = false;
         try
         {
@@ -85,7 +90,13 @@ public partial class MainForm : Form
         }
         catch (Exception error) when (error is IOException or InvalidOperationException or System.Net.Sockets.SocketException)
         { if (!_closing) SetStatus("Chưa gửi được: " + error.Message); }
-        finally { if (!_closing) btn_send.Enabled = _protocol.IsConnected; }
+        finally
+        {
+            if (!_closing)
+            {
+                btn_send.Enabled = CanSendChat;
+            }
+        }
     }
 
     private void DemoMessage_KeyDown(object? sender, KeyEventArgs e)
@@ -129,7 +140,7 @@ public partial class MainForm : Form
         button1.Text = _connecting ? "Đang kết nối…" : "Kết nối";
         btnDisconnect.Enabled = connected;
         txtHost.Enabled = numPort.Enabled = !connected && !_connecting;
-        btn_send.Enabled = txtMessage.Enabled = connected;
+        btn_send.Enabled = txtMessage.Enabled = CanSendChat;
         lblConnectionStatus.Text = connected ? "Đã kết nối" : "Chưa kết nối";
         lblConnectionStatus.ForeColor = connected ? UiTheme.Accent : UiTheme.Muted;
         lblCurrentUser.Text = _currentUser is null ? "Chưa đăng nhập" : $"{_currentUser.DisplayName} · @{_currentUser.Username}";

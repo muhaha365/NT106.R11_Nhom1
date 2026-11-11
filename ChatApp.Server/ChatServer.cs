@@ -194,7 +194,10 @@ public class ChatServer
         }
         finally
         {
-            _clients.Remove(sender);
+            lock (_sessionlock)
+            {
+                _clients.Remove(sender);
+            }
             ReleaseSession(sender);
             sender.Dispose();
         }
@@ -296,12 +299,31 @@ public class ChatServer
             code = ex.Message;
             message = code switch
             {
-                "PROFILE_REQUIRED" => "Tài khoản đã có, cần hoàn tất hồ sơ ứng dụng.",
-                "USERNAME_TAKEN" => "Tên người dùng đã được sử dụng.",
-                "ALREADY_ONLINE" => "Tài khoản đang đăng nhập ở kết nối khác.",
-                "INVALID_TOKEN" => "Tài khoản đã bị vô hiệu hóa.",
-                _ => "Kết nối này dã đăng nhập."
+                "PROFILE_REQUIRED"
+                    => "Tài khoản đã có, cần hoàn tất hồ sơ ứng dụng.",
+
+                "USERNAME_TAKEN"
+                    => "Tên người dùng đã được sử dụng.",
+
+                "ALREADY_AUTHENTICATED"
+                    => "Kết nối này đã đăng nhập.",
+
+                "ALREADY_ONLINE"
+                    => "Tài khoản đang đăng nhập ở kết nối khác.",
+
+                "INVALID_TOKEN"
+                    => "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.",
+
+                "USER_DISABLED"
+                    => "Tài khoản đã bị vô hiệu hóa.",
+
+                _ => "Không thể hoàn tất đăng nhập."
             };
+        }
+        catch (ArgumentException ex) when (ex.Message == "INVALID_REQUEST")
+        {
+            code = "INVALID_REQUEST";
+            message = "Thông tin gửi lên không hợp lệ. Hãy kiểm tra lại.";
         }
         catch(Exception ex)
         {
