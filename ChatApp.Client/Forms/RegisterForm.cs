@@ -5,8 +5,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Data.Common;
 using System.Drawing;
-// TUI VỪA THÊM 1: Thêm thư viện này để dùng được hàm băm mật khẩu
-using System.Security.Cryptography;
+using System.Security.Cryptography; //thư viện dùng cho hàm băm mật khẩu
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
@@ -16,7 +15,7 @@ namespace ChatApp.Client.Forms
 {
     public partial class RegisterForm : Form
     {
-        // TUI VỪA THÊM 2: Khai báo biến _connection để dùng cho việc kết nối TCP
+        // Khai báo biến _connection để dùng cho việc kết nối TCP
         private readonly ClientConnection _connection = new();
 
         public RegisterForm()
@@ -24,7 +23,7 @@ namespace ChatApp.Client.Forms
             InitializeComponent();
         }
 
-        // TUI VỪA THÊM 3: Chèn hàm băm mật khẩu SHA256 vào đây
+        //  Chèn hàm băm mật khẩu SHA256 
         private string HashSHA256(string rawData)
         {
             using (SHA256 sha256Hash = SHA256.Create())
@@ -54,7 +53,7 @@ namespace ChatApp.Client.Forms
 
         }
 
-        // TUI VỪA THÊM 4: Thêm chữ "async" vào ngay sau chữ "private" ở dòng này
+       
         private async void button1_Click_1(object sender, EventArgs e)
         {
             string username = txtUsername.Text.Trim();
@@ -143,7 +142,7 @@ namespace ChatApp.Client.Forms
 
         }
 
-        // TUI VỪA THÊM 5: Thêm hàm dọn dẹp bộ nhớ và ngắt TCP khi người dùng tắt Form này đi
+       // Dọn dẹp bộ nhớ và ngắt TCP khi người dùng tắt Form này đi
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             _connection.Dispose();
