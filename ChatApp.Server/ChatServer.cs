@@ -194,7 +194,10 @@ public class ChatServer
         }
         finally
         {
-            _clients.Remove(sender);
+            lock (_sessionlock)
+            {
+                _clients.Remove(sender);
+            }
             ReleaseSession(sender);
             sender.Dispose();
         }
