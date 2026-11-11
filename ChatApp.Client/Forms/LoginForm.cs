@@ -31,12 +31,12 @@ namespace ChatApp.Client.Forms
         private async void btn_connect_Click(object sender, EventArgs e)
         {
 
-            string username = txtEmail.Text.Trim();
+            string email = txtEmail.Text.Trim();
             string password = txtPassword.Text;
 
-            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrEmpty(password))
             {
-                MessageBox.Show(this, "Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu!");
+                MessageBox.Show(this, "Vui lòng nhập email và mật khẩu.");
                 return;
             }
 
@@ -45,7 +45,7 @@ namespace ChatApp.Client.Forms
             try
             {
                 var firebase = new FirebaseAuthClient(Environment.GetEnvironmentVariable("FIREBASE_WEB_API_KEY") ?? "");
-                string idToken = await firebase.LoginAsync(txtEmail.Text.Trim(), txtPassword.Text);
+                string idToken = await firebase.LoginAsync(email, password);
                 await protocol.ConnectAsync("127.0.0.1", 5000);
                 var result = await protocol.RequestAsync<AuthenticationResult>(
                     "auth.firebase.request", new FirebaseLoginRequest(idToken, null, null));
