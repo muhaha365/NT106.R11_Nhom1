@@ -148,7 +148,7 @@ namespace ChatApp.Client.Forms
             }
             finally
             {
-                if(!IsDisposed || Disposing)
+                if (!IsDisposed && !Disposing)
                 {
                     btnRegister.Enabled = true;
                     btnRegister.Text = "Sign Up";
