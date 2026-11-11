@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "ChatApp.Client": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "FIREBASE_WEB_API_KEY": "AIzaSyATzWrkkFIVZh4waVXi9JqH_7H_h3GlsvM",
+        "FIREBASE_PROJECT_ID": "chatapp-nhom1-41d53"
+      }
+    }
+  }
+}
