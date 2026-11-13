@@ -1,5 +1,7 @@
 # Chuẩn bị báo cáo giữa kỳ NEXUS X — Nhóm 1
 
+> Cập nhật 12/11/2026: dùng [nội dung thuyết trình điều chỉnh](noi-dung-thuyet-trinh-giua-ky.vi.md) để dựng slide. Tài liệu bên dưới giữ kết quả đánh giá và dàn ý cũ ngày 11/11/2026.
+
 Đối chiếu source trong `Do_an` ngày 11/11/2026, HEAD `8a95241`. Người dùng xác nhận đây là bản báo cáo; thời lượng 10–15 phút. Tài liệu này là nội dung để dựng PowerPoint và tập thuyết trình, chưa phải file `.pptx`.
 
 Đã đọc các luồng Client, Server, Shared và build bằng `dotnet build ChatApp.Nhom1.slnx --no-restore`: thành công, 0 warning, 0 error. Chưa chạy kiểm thử đăng ký/đăng nhập với Firebase thật; các trạng thái dưới đây là kết luận từ source, không phải biên bản nghiệm thu. Chưa sửa source ứng dụng.
