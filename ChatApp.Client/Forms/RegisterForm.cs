@@ -17,10 +17,19 @@ namespace ChatApp.Client.Forms
     {
         // Khai báo biến _connection để dùng cho việc kết nối TCP
         private readonly ClientConnection _connection = new();
+        private string? _registeredFirebaseEmail;
 
         public RegisterForm()
         {
             InitializeComponent();
+            txtEmail.TextChanged += (s, e) =>
+            {
+                if (_registeredFirebaseEmail != null && !string.Equals(txtEmail.Text.Trim(), _registeredFirebaseEmail, StringComparison.OrdinalIgnoreCase))
+                {
+                    chkExistingAccount.Checked = false;
+                    _registeredFirebaseEmail = null;
+                }
+            };
         }
 
         //  Chèn hàm băm mật khẩu SHA256 
@@ -58,19 +67,30 @@ namespace ChatApp.Client.Forms
         {
             string username = txtUsername.Text.Trim();
             string displayName = txtDisplayName.Text.Trim();
+            string email = txtEmail.Text.Trim();
             string password = txtPassword.Text.Trim();
             string confirmPassword = txtConfirmPassword.Text.Trim();
 
             // 1. Kiểm tra rỗng
-            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(displayName) ||
-                string.IsNullOrEmpty(password) || string.IsNullOrEmpty(confirmPassword))
+            if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(username) || 
+                string.IsNullOrEmpty(displayName) || string.IsNullOrEmpty(password) || string.IsNullOrEmpty(confirmPassword))
             {
                 MessageBox.Show(this, "Vui lòng điền đầy đủ tất cả các thông tin!");
                 return;
             }
-            if (!Regex.IsMatch(username, "^[a-zA-Z0-9]+$"))
+
+            // Kiểm tra định dạng username (từ 3 đến 20 ký tự, chữ, số và dấu gạch dưới)
+            if (!Regex.IsMatch(username, "^[a-zA-Z0-9_]{3,20}$"))
             {
-                MessageBox.Show(this, "Tên đăng nhập phải viết liền, không dấu và không chứa ký tự đặc biệt!");
+                MessageBox.Show(this, "Tên đăng nhập phải từ 3 đến 20 ký tự, chỉ gồm chữ cái, số và dấu gạch dưới (_), không dấu và không chứa khoảng trắng!");
+                txtUsername.Focus();
+                return;
+            }
+
+            if (displayName.Length > 100)
+            {
+                MessageBox.Show(this, "Tên hiển thị không được vượt quá 100 ký tự!");
+                txtDisplayName.Focus();
                 return;
             }
 
@@ -78,6 +98,7 @@ namespace ChatApp.Client.Forms
             if (password != confirmPassword)
             {
                 MessageBox.Show(this, "Mật khẩu nhập lại không khớp!");
+                txtConfirmPassword.Focus();
                 return;
             }
 
@@ -91,16 +112,21 @@ namespace ChatApp.Client.Forms
                 using var protocol = new ProtocolClient();
 
                 // Chỉ gọi signUp khi người dùng thực sự muốn tạo tài khoản mới.
-                string idToken = chkExistingAccount.Checked
-                    ? await firebase.LoginAsync(txtEmail.Text.Trim(), txtPassword.Text)
-                    : await firebase.RegisterAsync(txtEmail.Text.Trim(), txtPassword.Text);
+                // Nếu lần trước đã tạo Firebase thành công (do trùng username ở bước sau), lần thử tiếp sẽ đăng nhập lại với cùng email.
+                bool useExisting = chkExistingAccount.Checked &&
+                    (string.Equals(email, _registeredFirebaseEmail, StringComparison.OrdinalIgnoreCase) || _registeredFirebaseEmail == null);
 
-                // Từ thời điểm đã nhận token, mọi lần thử tiếp phải đi đường đăng nhập.
+                string idToken = useExisting
+                    ? await firebase.LoginAsync(email, txtPassword.Text)
+                    : await firebase.RegisterAsync(email, txtPassword.Text);
+
+                _registeredFirebaseEmail = email;
                 chkExistingAccount.Checked = true;
+
                 await protocol.ConnectAsync("127.0.0.1", 5000);
                 var result = await protocol.RequestAsync<AuthenticationResult>(
                     "auth.firebase.request",
-                    new FirebaseLoginRequest(idToken, txtUsername.Text.Trim(), txtDisplayName.Text.Trim()));
+                    new FirebaseLoginRequest(idToken, username, displayName));
 
                 // Đóng phiên đăng ký để trở lại LoginForm; server giải phóng user trước khi trả lời.
                 await protocol.RequestAsync<EmptyResult>("auth.logout.request", new { });
@@ -119,6 +145,11 @@ namespace ChatApp.Client.Forms
             catch (ProtocolRequestException ex)
             {
                 MessageBox.Show(this, ex.Message);
+                if (ex.Code == "USERNAME_TAKEN")
+                {
+                    txtUsername.Focus();
+                    txtUsername.SelectAll();
+                }
             }
             catch (ArgumentException ex)
             {

@@ -49,7 +49,7 @@ namespace ChatApp.Server
             if(!doc.Exists) return null;
             return ReadUser(doc);
         }
-        public async Task<UserSummary> EnsureProfileAsync(string verifiedUid, string username, string displayName, CancellationToken ct = default)
+        public async Task<EnsureProfileResult> EnsureProfileAsync(string verifiedUid, string username, string displayName, CancellationToken ct = default)
         {
             username = username.Trim().ToLowerInvariant();
             displayName = displayName.Trim();
@@ -63,6 +63,18 @@ namespace ChatApp.Server
             var mappingref = _db.Collection("authUsers").Document(Uri.EscapeDataString(verifiedUid));
             var nameref = _db.Collection("usernames").Document(username);
             var counterref = _db.Collection("counters").Document("users");
+
+            // Kiểm tra nhanh username trước khi mở transaction (tránh overhead và unhandled exception breakpoint khi debug)
+            var existingMapping = await mappingref.GetSnapshotAsync(ct);
+            if (!existingMapping.Exists)
+            {
+                var existingName = await nameref.GetSnapshotAsync(ct);
+                if (existingName.Exists)
+                {
+                    return new EnsureProfileResult(null, "USERNAME_TAKEN");
+                }
+            }
+
             return await _db.RunTransactionAsync(async tx =>
             {
                 var mapping = await tx.GetSnapshotAsync(mappingref);
@@ -73,13 +85,13 @@ namespace ChatApp.Server
                     {
                         throw new InvalidDataException("Hồ sơ không nhất quán");
                     }
-                    return ReadUser(existing);
+                    return new EnsureProfileResult(ReadUser(existing));
                 }
                 // Đọc tất cả dữ liệu cần kiểm tra trước khi ghi.
                 var name = await tx.GetSnapshotAsync(nameref);
                 if(name.Exists)
                 {
-                    throw new InvalidOperationException("USERNAME_TAKEN");
+                    return new EnsureProfileResult(null, "USERNAME_TAKEN");
                 }
                 
                 var counter = await tx.GetSnapshotAsync(counterref);
@@ -105,7 +117,7 @@ namespace ChatApp.Server
                 {
                     ["UserId"] = newId
                 });
-                return new UserSummary(newId, username, displayName, false);
+                return new EnsureProfileResult(new UserSummary(newId, username, displayName, false));
             }, cancellationToken: ct);
         }
         public async Task<(MessageSummary Message, int[] recipients)> SendMessageAsync(int me, int? receiverId, int? groupId, string content, CancellationToken ct = default)
@@ -241,4 +253,6 @@ namespace ChatApp.Server
             return await GetUserAsync(id, ct) ?? throw new InvalidDataException("Có mapping nhưng thiếu hồ sơ user.");
         }
     }
+
+    public sealed record EnsureProfileResult(UserSummary? User, string? ErrorCode = null);
 }

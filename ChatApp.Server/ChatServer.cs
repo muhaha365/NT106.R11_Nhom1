@@ -261,7 +261,19 @@ public class ChatServer
                 {
                     throw new InvalidOperationException("PROFILE_REQUIRED");
                 }
-                user = await _database.EnsureProfileAsync(verified.Uid, request.Username, request.DisplayName, ct);
+                var profileResult = await _database.EnsureProfileAsync(verified.Uid, request.Username, request.DisplayName, ct);
+                if (profileResult.ErrorCode is not null)
+                {
+                    code = profileResult.ErrorCode;
+                    message = code switch
+                    {
+                        "USERNAME_TAKEN" => "Username đã được sử dụng.",
+                        _ => "Không thể hoàn tất hồ sơ."
+                    };
+                    await ReplyAsync(client, packet, null, code, message, ct);
+                    return;
+                }
+                user = profileResult.User!;
             }
             lock(_sessionlock)
             {
@@ -297,11 +309,16 @@ public class ChatServer
             message = code switch
             {
                 "PROFILE_REQUIRED" => "Tài khoản đã có, cần hoàn tất hồ sơ ứng dụng.",
-                "USERNAME_TAKEN" => "Tên người dùng đã được sử dụng.",
+                "USERNAME_TAKEN" => "Username đã được sử dụng.",
                 "ALREADY_ONLINE" => "Tài khoản đang đăng nhập ở kết nối khác.",
                 "INVALID_TOKEN" => "Tài khoản đã bị vô hiệu hóa.",
-                _ => "Kết nối này dã đăng nhập."
+                _ => "Kết nối này đã đăng nhập."
             };
+        }
+        catch (ArgumentException)
+        {
+            code = "INVALID_REQUEST";
+            message = "Dữ liệu yêu cầu không hợp lệ.";
         }
         catch(Exception ex)
         {
