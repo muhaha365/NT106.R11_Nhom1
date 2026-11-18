@@ -1,7 +1,3 @@
-using System.Security.Cryptography;
-using ChatApp.Shared;
-using System.Text;
-using System.Text.Json;
 using ChatApp.Shared.Contracts;
 using static ChatApp.Client.AuthMessages;
 
@@ -40,34 +36,32 @@ namespace ChatApp.Client.Forms
                 using var main = new MainForm(protocol, result.User);
                 protocol = null; // MainForm sở hữu kết nối từ đây, DisposeConnection đã có sẵn.
                 Hide();
-                try { main.ShowDialog(); }
-                finally { if (!IsDisposed) Show(); }
+                try
+                {
+                    main.ShowDialog();
+                }
+                finally
+                {
+                    if (!IsDisposed)
+                    {
+                        Show();
+                    }
+                }
             }
-            catch (ProtocolRequestException ex) when (ex.Code == "PROFILE_REQUIRED")
+            catch (Exception error)
             {
-                MessageBox.Show(this,
-                    "Tài khoản Firebase đã có. Mở Đăng ký, chọn Hoàn tất hồ sơ và nhập lại email/mật khẩu.");
-            }
-            catch (FirebaseSignInException ex)
-            {
-                MessageBox.Show(this, FirebaseErrorMessage(ex.Code));
-            }
-            catch (ProtocolRequestException ex)
-            {
-                MessageBox.Show(this, ex.Message);
-            }
-            catch (ArgumentException ex)
-            {
-                MessageBox.Show(this, ex.Message);
-            }
-            catch (Exception)
-            {
-                MessageBox.Show(this, "Chưa đăng nhập được. Kiểm tra kết nối và thử lại.");
+                string message = AuthenticationErrorMessage(
+                    error, "Chưa đăng nhập được. Kiểm tra kết nối và thử lại.");
+                MessageBox.Show(this, message);
             }
             finally
             {
                 protocol?.Dispose();
-                if (!IsDisposed) { btn_connect.Enabled = true; btn_connect.Text = "Sign In"; }
+                if (!IsDisposed)
+                {
+                    btn_connect.Enabled = true;
+                    btn_connect.Text = "Sign In";
+                }
             }
         }
 

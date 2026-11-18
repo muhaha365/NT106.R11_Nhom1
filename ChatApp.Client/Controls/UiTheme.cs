@@ -5,6 +5,7 @@ namespace ChatApp.Client.Controls;
 
 internal static class UiTheme
 {
+    // Chỉ tạo và vẽ control. Các hàm trong file này không gửi mạng hay đọc database.
     public static readonly Color Accent = Color.FromArgb(68, 83, 212);
     public static readonly Color AccentSoft = Color.FromArgb(237, 240, 255);
     public static readonly Color Surface = Color.FromArgb(245, 247, 251);
@@ -107,11 +108,16 @@ internal static class UiTheme
     internal static string Initials(string name)
     {
         var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return words.Length == 0 ? "?" : string.Concat(words.TakeLast(2).Select(word => System.Globalization.StringInfo.GetNextTextElement(word))).ToUpperInvariant();
+        if (words.Length == 0) return "?";
+        string initials = "";
+        int start = Math.Max(0, words.Length - 2);
+        for (int i = start; i < words.Length; i++)
+            initials += System.Globalization.StringInfo.GetNextTextElement(words[i]);
+        return initials.ToUpperInvariant();
     }
 }
 
-// Native pages and Ctrl+Tab behavior; navigation is provided by accessible radio buttons.
+// Giữ cách chuyển trang bằng Ctrl+Tab; các RadioButton phía trên dùng để chọn trang.
 internal sealed class PageTabs : TabControl
 {
     public PageTabs() { Appearance = TabAppearance.FlatButtons; SizeMode = TabSizeMode.Fixed; ItemSize = new Size(1, 1); }
@@ -138,18 +144,34 @@ internal sealed class RoundedButton : Button
         e.Graphics.Clear(Parent?.BackColor ?? Color.White);
         var bounds = new Rectangle(1, 1, Width - 3, Height - 3);
         using var path = UiTheme.RoundedPath(bounds, 9 * DeviceDpi / 96);
-        var background = !Enabled ? Color.FromArgb(235, 238, 245) : _primary ? (_hover ? Color.FromArgb(53, 65, 181) : UiTheme.Accent) : (_hover ? UiTheme.AccentSoft : Color.White);
+        Color background = Color.White;
+        Color textColor = UiTheme.Ink;
+        if (!Enabled)
+        {
+            background = Color.FromArgb(235, 238, 245);
+            textColor = UiTheme.Muted;
+        }
+        else if (_primary)
+        {
+            background = UiTheme.Accent;
+            if (_hover) background = Color.FromArgb(53, 65, 181);
+            textColor = Color.White;
+        }
+        else if (_hover)
+        {
+            background = UiTheme.AccentSoft;
+        }
         using var fill = new SolidBrush(background);
         using var border = new Pen(_primary && Enabled ? background : UiTheme.Line);
         e.Graphics.FillPath(fill, path);
         e.Graphics.DrawPath(border, path);
-        TextRenderer.DrawText(e.Graphics, Text, Font, bounds, !Enabled ? UiTheme.Muted : _primary ? Color.White : UiTheme.Ink,
+        TextRenderer.DrawText(e.Graphics, Text, Font, bounds, textColor,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         if (Focused && ShowFocusCues) ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(bounds, -5, -5));
     }
 }
 
-// Keep native selection, keyboard navigation, tooltips and accessible item text.
+// Tự vẽ từng dòng, vẫn dùng chọn dòng, bàn phím và tooltip của ListView.
 internal sealed class ContactList : ListView
 {
     private readonly ImageList _rowHeight = new() { ImageSize = new Size(1, 64) };
@@ -166,36 +188,41 @@ internal sealed class ContactList : ListView
     protected override void OnDrawSubItem(DrawListViewSubItemEventArgs e) { }
     protected override void OnDrawItem(DrawListViewItemEventArgs e)
     {
-        var scale = DeviceDpi / 96f;
-        int S(int value) => (int)(value * scale);
-        var bounds = new Rectangle(2, e.Bounds.Top + S(3), ClientSize.Width - 5, e.Bounds.Height - S(6));
+        var bounds = new Rectangle(2, e.Bounds.Top + ScalePixels(3), ClientSize.Width - 5, e.Bounds.Height - ScalePixels(6));
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var path = UiTheme.RoundedPath(bounds, S(10));
+        using var path = UiTheme.RoundedPath(bounds, ScalePixels(10));
         using var fill = new SolidBrush(e.Item.Selected ? UiTheme.AccentSoft : Color.White);
         e.Graphics.FillPath(fill, path);
-        var avatar = new Rectangle(bounds.Left + S(10), bounds.Top + (bounds.Height - S(36)) / 2, S(36), S(36));
+        var avatar = new Rectangle(bounds.Left + ScalePixels(10), bounds.Top + (bounds.Height - ScalePixels(36)) / 2, ScalePixels(36), ScalePixels(36));
         using var avatarFill = new SolidBrush(e.Item.Selected ? Color.FromArgb(215, 222, 255) : Color.FromArgb(237, 241, 248));
         e.Graphics.FillEllipse(avatarFill, avatar);
         TextRenderer.DrawText(e.Graphics, e.Item.Tag is GroupSummary ? "#" : UiTheme.Initials(e.Item.Text), Font, avatar, UiTheme.Accent, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-        var person = e.Item.Tag switch { FriendEntry friend => friend.User, UserSummary user => user, _ => null };
+        UserSummary? person = e.Item.Tag as UserSummary;
+        FriendEntry? friend = e.Item.Tag as FriendEntry;
+        if (friend != null) person = friend.User;
         if (person is not null)
         {
-            var dot = new Rectangle(avatar.Right - S(9), avatar.Bottom - S(9), S(10), S(10));
+            var dot = new Rectangle(avatar.Right - ScalePixels(9), avatar.Bottom - ScalePixels(9), ScalePixels(10), ScalePixels(10));
             using var presence = new SolidBrush(person.IsOnline ? Color.FromArgb(22, 139, 100) : Color.FromArgb(155, 164, 181));
-            using var outline = new Pen(Color.White, S(2));
+            using var outline = new Pen(Color.White, ScalePixels(2));
             e.Graphics.FillEllipse(presence, dot);
             e.Graphics.DrawEllipse(outline, dot);
         }
-        var textLeft = avatar.Right + S(10);
-        var textWidth = Math.Max(10, bounds.Right - textLeft - S(10));
-        var title = new Rectangle(textLeft, bounds.Top + S(9), textWidth, S(22));
+        var textLeft = avatar.Right + ScalePixels(10);
+        var textWidth = Math.Max(10, bounds.Right - textLeft - ScalePixels(10));
+        var title = new Rectangle(textLeft, bounds.Top + ScalePixels(9), textWidth, ScalePixels(22));
         TextRenderer.DrawText(e.Graphics, e.Item.Text, Font, title, UiTheme.Ink, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
-        var details = e.Item.SubItems.Count >= 3 ? $"@{e.Item.SubItems[1].Text}  ·  {e.Item.SubItems[2].Text}"
-            : e.Item.SubItems.Count == 2 ? e.Item.SubItems[1].Text : "Trò chuyện nhóm";
+        string details = "Trò chuyện nhóm";
+        if (e.Item.SubItems.Count >= 3)
+            details = $"@{e.Item.SubItems[1].Text}  ·  {e.Item.SubItems[2].Text}";
+        else if (e.Item.SubItems.Count == 2)
+            details = e.Item.SubItems[1].Text;
         using var small = new Font(Font.FontFamily, 8.5f);
-        TextRenderer.DrawText(e.Graphics, details, small, new Rectangle(textLeft, bounds.Top + S(32), textWidth, S(20)), UiTheme.Muted, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
+        TextRenderer.DrawText(e.Graphics, details, small, new Rectangle(textLeft, bounds.Top + ScalePixels(32), textWidth, ScalePixels(20)), UiTheme.Muted, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
         if (e.Item.Selected && Focused && ShowFocusCues) ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(bounds, -2, -2));
     }
+    private int ScalePixels(int pixels) { return (int)(pixels * (DeviceDpi / 96f)); }
+
     protected override void Dispose(bool disposing) { if (disposing) _rowHeight.Dispose(); base.Dispose(disposing); }
 }
 

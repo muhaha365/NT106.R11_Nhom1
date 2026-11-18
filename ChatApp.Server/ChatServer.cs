@@ -1,21 +1,13 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Net;
-using System.Text;
 using System.Text.Json;
 using ChatApp.Shared;
 using System.Net.Sockets;
-using System.Diagnostics;
 using ChatApp.Shared.Contracts;
 using FirebaseAdmin.Auth;
-using System.ComponentModel;
-using Google.Protobuf.WellKnownTypes;
-using ChatApp.Shared.Models;
-using Google.Apis.Auth.OAuth2;
 namespace ChatApp.Server;
 
 /// <summary>
 /// Lắng nghe TCP và tiếp nhận nhiều kết nối client.
-/// Khung lớp: chưa triển khai chức năng.
 /// </summary>
 public class ChatServer
 {
@@ -28,6 +20,15 @@ public class ChatServer
     private int _nextId = 0;
     private readonly object _sessionlock = new object();
     private readonly Dictionary<int, ConnectedClient> _onlineUsers = new();
+    // Tra thông báo theo mã lỗi, dùng chung cho các nhánh xác thực.
+    private static readonly Dictionary<string, string> AuthErrors = new()
+    {
+        ["PROFILE_REQUIRED"] = "Tài khoản đã có, cần hoàn tất hồ sơ ứng dụng.",
+        ["USERNAME_TAKEN"] = "Tên người dùng đã được sử dụng.",
+        ["ALREADY_ONLINE"] = "Tài khoản đang đăng nhập ở kết nối khác.",
+        ["INVALID_TOKEN"] = "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.",
+        ["USER_DISABLED"] = "Tài khoản đã bị vô hiệu hóa."
+    };
     public async Task Run(int port, CancellationToken ct)
     {
         TcpListener listener = new TcpListener(IPAddress.Loopback, port);
@@ -68,9 +69,17 @@ public class ChatServer
     {
         lock(_sessionlock)
         {
-            return _clients.Where(client => client.UserId is not null 
-                && client.SessionExpiresAt is DateTimeOffset expiry 
-                && expiry > DateTimeOffset.UtcNow).ToArray();
+            var connected = new List<ConnectedClient>();
+            foreach (var client in _clients)
+            {
+                if (client.UserId == null || client.SessionExpiresAt == null
+                    || client.SessionExpiresAt <= DateTimeOffset.UtcNow)
+                {
+                    continue;
+                }
+                connected.Add(client);
+            }
+            return connected.ToArray();
         }
     }
     private async Task HandleClientAsync(ConnectedClient sender, CancellationToken ct)
@@ -144,12 +153,12 @@ public class ChatServer
                     Console.WriteLine($"Client {sender.Id} gửi gói không hợp lệ: {packet.Type}");
                     continue;
                 }
-                if (packet.Payload is not JsonElement payload || payload.ValueKind != JsonValueKind.String)
+                if (!packet.Payload.HasValue || packet.Payload.Value.ValueKind != JsonValueKind.String)
                 {
                     Console.WriteLine($"Client {sender.Id} gửi gói chat không hợp lệ.");
                     continue;
                 }
-                string message = payload.GetString()!;
+                string? message = packet.Payload.Value.GetString();
                 if(string.IsNullOrWhiteSpace(message))
                 {
                     Console.WriteLine($"Client {sender.Id} gửi gói chat rỗng.");
@@ -205,6 +214,7 @@ public class ChatServer
 
     private static async Task ReplyAsync(ConnectedClient client, Packet request, object? data, string? code, string? message, CancellationToken ct = default)
     {
+        string requestName = request.Type.Substring(0, request.Type.Length - ".request".Length);
         var payload = new
         {
             Success = code is null,
@@ -213,7 +223,7 @@ public class ChatServer
         };
         await client.SendPacketAsync(new Packet
         {
-            Type = $"{request.Type[..^8]}.response",
+            Type = requestName + ".response",
             RequestId = request.RequestId,
             Payload = JsonSerializer.SerializeToElement(payload)
         }, ct);
@@ -222,9 +232,13 @@ public class ChatServer
     {
         lock(_sessionlock)
         {
-            if(client.UserId is int id && _onlineUsers.TryGetValue(id, out var owner) && ReferenceEquals(client, owner))
+            if (client.UserId.HasValue)
             {
-                _onlineUsers.Remove(id);
+                int id = client.UserId.Value;
+                if (_onlineUsers.TryGetValue(id, out var owner) && ReferenceEquals(client, owner))
+                {
+                    _onlineUsers.Remove(id);
+                }
             }
             client.UserId = null;
             client.SessionExpiresAt = null;
@@ -232,20 +246,24 @@ public class ChatServer
     }
     private async Task HandleFirebaseLoginAsync(ConnectedClient client, Packet packet, CancellationToken ct = default)
     {
+        if (client.UserId != null)
+        {
+            await ReplyAsync(client, packet, null, "ALREADY_AUTHENTICATED", "Kết nối này đã đăng nhập.", ct);
+            return;
+        }
+        if (!packet.Payload.HasValue || packet.Payload.Value.ValueKind != JsonValueKind.Object)
+        {
+            await ReplyAsync(client, packet, null, "INVALID_REQUEST", "Thông tin gửi lên không hợp lệ. Hãy kiểm tra lại.", ct);
+            return;
+        }
+
         AuthenticationResult? result = null;
         string? code = null;
         string? message = null;
         try
         {
-            if(client.UserId is not null)
-            {
-                throw new InvalidOperationException("ALREADY_AUTHENTICATED");
-            }
-            if(packet.Payload is not JsonElement payload || payload.ValueKind != JsonValueKind.Object)
-            {
-                throw new ArgumentException("INVALID_REQUEST");
-            }
-            var request = JsonSerializer.Deserialize<FirebaseLoginRequest>(payload);
+            JsonElement payload = packet.Payload.Value;
+            FirebaseLoginRequest? request = JsonSerializer.Deserialize<FirebaseLoginRequest>(payload);
             if(request is null || string.IsNullOrWhiteSpace(request.IdToken) || request.IdToken.Length > 16384)
             {
                 throw new ArgumentException("INVALID_REQUEST");
@@ -280,45 +298,39 @@ public class ChatServer
                 client.SessionExpiresAt = expiresAt;
                 _onlineUsers.Add(user.Id, client);
             }
-            result = new AuthenticationResult(user with { IsOnline = true });
+            UserSummary onlineUser = new UserSummary(user.Id, user.Username, user.DisplayName, true);
+            result = new AuthenticationResult(onlineUser);
         }
-        catch (OperationCanceledException) when(ct.IsCancellationRequested) { throw; }
+        catch (OperationCanceledException) when(ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (FirebaseAuthException ex)
         {
-            bool rejected = ex.AuthErrorCode is AuthErrorCode.InvalidIdToken
-                or AuthErrorCode.ExpiredIdToken or AuthErrorCode.RevokedIdToken
-                or AuthErrorCode.UserNotFound;
-            code = rejected ? "INVALID_TOKEN" : "AUTH_UNAVAILABLE";
-            message = rejected ? "Phiên Firebase không hợp lệ. Hãy đăng nhập lại." : "Chưa thể xác minh tài khoản. Hãy thử lại sau.";
+            bool rejected = ex.AuthErrorCode == AuthErrorCode.InvalidIdToken
+                || ex.AuthErrorCode == AuthErrorCode.ExpiredIdToken
+                || ex.AuthErrorCode == AuthErrorCode.RevokedIdToken
+                || ex.AuthErrorCode == AuthErrorCode.UserNotFound;
+            if (rejected)
+            {
+                code = "INVALID_TOKEN";
+                message = "Phiên Firebase không hợp lệ. Hãy đăng nhập lại.";
+            }
+            else
+            {
+                code = "AUTH_UNAVAILABLE";
+                message = "Chưa thể xác minh tài khoản. Hãy thử lại sau.";
+            }
         }
-        catch (JsonException) { code = "INVALID_REQUEST"; message = "Payload không hợp lệ";}
-        catch (InvalidOperationException ex) when (ex.Message is "PROFILE_REQUIRED"
-            or "USERNAME_TAKEN" or "ALREADY_AUTHENTICATED" or "ALREADY_ONLINE" or "INVALID_TOKEN"
-            or "USER_DISABLED")
+        catch (JsonException)
+        {
+            code = "INVALID_REQUEST";
+            message = "Payload không hợp lệ";
+        }
+        catch (InvalidOperationException ex) when (AuthErrors.ContainsKey(ex.Message))
         {
             code = ex.Message;
-            message = code switch
-            {
-                "PROFILE_REQUIRED"
-                    => "Tài khoản đã có, cần hoàn tất hồ sơ ứng dụng.",
-
-                "USERNAME_TAKEN"
-                    => "Tên người dùng đã được sử dụng.",
-
-                "ALREADY_AUTHENTICATED"
-                    => "Kết nối này đã đăng nhập.",
-
-                "ALREADY_ONLINE"
-                    => "Tài khoản đang đăng nhập ở kết nối khác.",
-
-                "INVALID_TOKEN"
-                    => "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.",
-
-                "USER_DISABLED"
-                    => "Tài khoản đã bị vô hiệu hóa.",
-
-                _ => "Không thể hoàn tất đăng nhập."
-            };
+            message = AuthErrors[code];
         }
         catch (ArgumentException ex) when (ex.Message == "INVALID_REQUEST")
         {

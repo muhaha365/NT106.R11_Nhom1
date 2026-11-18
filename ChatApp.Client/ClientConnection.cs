@@ -1,12 +1,9 @@
-using System.Buffers;
-using System.Net.Sockets;
-using System.Text;
+﻿using System.Net.Sockets;
 using ChatApp.Shared;
 namespace ChatApp.Client;
 
 /// <summary>
 /// Giữ một kết nối TCP dùng chung trong ứng dụng client.
-/// Khung lớp: chưa triển khai chức năng.
 /// </summary>
 public class ClientConnection : IDisposable
 {
@@ -55,6 +52,4 @@ public class ClientConnection : IDisposable
     {
         Disconnect();
     }
-    // TODO: Kết nối/ngắt kết nối bất đồng bộ; một vòng nhận gói; tuần tự hóa việc ghi.
-    // TODO: Phát sự kiện dữ liệu tới service. Không truy cập trực tiếp control WinForms.
 }

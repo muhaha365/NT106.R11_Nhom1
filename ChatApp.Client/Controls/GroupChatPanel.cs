@@ -27,10 +27,10 @@ public sealed class GroupChatPanel : UserControl
     private readonly Dictionary<int, string> _memberNames = new();
     private readonly Dictionary<int, string> _drafts = new();
     private readonly HashSet<int> _removedGroups = new();
-    private readonly HashSet<int> _historyCursors = new();
     private UserSummary? _user;
     private GroupSummary? _selected;
     private Form? _activeDialog;
+    // Đổi phiên/nhóm thì tăng số này để kết quả tải cũ không ghi đè nhóm mới.
     private int _sessionVersion;
     private int _selectionVersion;
     private int _namesVersion;
@@ -58,15 +58,15 @@ public sealed class GroupChatPanel : UserControl
         groupMessageBox.PlaceholderText = "Viết tin nhắn cho nhóm…";
         groupsList.Name = "groupsList";
         groupsList.AccessibleName = "Danh sách nhóm của bạn";
-        createGroupButton = UiTheme.CreateButton("Tạo nhóm", (_, _) => CreateGroup(), true);
+        createGroupButton = UiTheme.CreateButton("Tạo nhóm", CreateGroupButton_Click, true);
         createGroupButton.Name = "createGroupButton";
-        refreshGroupsButton = UiTheme.CreateButton("Tải lại", async (_, _) => await RefreshAsync());
+        refreshGroupsButton = UiTheme.CreateButton("Tải lại", RefreshGroupsButton_Click);
         refreshGroupsButton.Name = "refreshGroupsButton";
-        sendGroupButton = UiTheme.CreateButton("Gửi", async (_, _) => await SendAsync(), true);
+        sendGroupButton = UiTheme.CreateButton("Gửi", SendGroupButton_Click, true);
         sendGroupButton.Name = "sendGroupButton";
-        membersButton = UiTheme.CreateButton("Thành viên", (_, _) => ShowMembers());
+        membersButton = UiTheme.CreateButton("Thành viên", MembersButton_Click);
         membersButton.Name = "membersButton";
-        loadHistoryButton = UiTheme.CreateButton("Tải lịch sử", async (_, _) => await LoadHistoryAsync());
+        loadHistoryButton = UiTheme.CreateButton("Tải lịch sử", LoadHistoryButton_Click);
         loadHistoryButton.Name = "loadHistoryButton";
         groupStatusLabel.Name = "groupStatusLabel";
         groupStatusLabel.MaximumSize = Size.Empty;
@@ -115,23 +115,39 @@ public sealed class GroupChatPanel : UserControl
         root.Controls.Add(left, 0, 0);
         root.Controls.Add(right, 1, 0);
         Controls.Add(root);
-        groupsList.SelectedIndexChanged += (_, _) => {
-            if (!_renderingList)
-                SelectGroup(groupsList.SelectedItems.Count == 1 ? groupsList.SelectedItems[0].Tag as GroupSummary : null);
-        };
-        groupsList.Resize += (_, _) => {
-            if (groupsList.IsHandleCreated) groupsList.BeginInvoke((Action)(() => {
-                if (!groupsList.IsDisposed && groupsList.Columns.Count > 0)
-                    groupsList.Columns[0].Width = Math.Max(60, groupsList.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 4);
-            }));
-        };
-        groupMessageBox.TextChanged += (_, _) => UpdateActions();
-        groupMessageBox.KeyDown += async (_, e) => {
-            if (e.KeyCode != Keys.Enter || e.Shift) return;
-            e.SuppressKeyPress = true;
-            await SendAsync();
-        };
+        groupsList.SelectedIndexChanged += GroupsList_SelectedIndexChanged;
+        groupsList.Resize += GroupsList_Resize;
+        groupMessageBox.TextChanged += MessageBox_TextChanged;
+        groupMessageBox.KeyDown += MessageBox_KeyDown;
         UpdateActions();
+    }
+
+    private void CreateGroupButton_Click(object? sender, EventArgs e) { CreateGroup(); }
+    private void MembersButton_Click(object? sender, EventArgs e) { ShowMembers(); }
+    private async void RefreshGroupsButton_Click(object? sender, EventArgs e) { await RefreshAsync(); }
+    private async void SendGroupButton_Click(object? sender, EventArgs e) { await SendAsync(); }
+    private async void LoadHistoryButton_Click(object? sender, EventArgs e) { await LoadHistoryAsync(); }
+    private void MessageBox_TextChanged(object? sender, EventArgs e) { UpdateActions(); }
+
+    private void GroupsList_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (_renderingList) return;
+        GroupSummary? group = null;
+        if (groupsList.SelectedItems.Count == 1)
+            group = groupsList.SelectedItems[0].Tag as GroupSummary;
+        SelectGroup(group);
+    }
+
+    private void GroupsList_Resize(object? sender, EventArgs e)
+    {
+        groupsList.Columns[0].Width = Math.Max(60, groupsList.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 4);
+    }
+
+    private async void MessageBox_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyCode != Keys.Enter || e.Shift) return;
+        e.SuppressKeyPress = true;
+        await SendAsync();
     }
 
     private bool Active => !IsDisposed && !Disposing && !_lifetime.IsCancellationRequested;
@@ -159,7 +175,6 @@ public sealed class GroupChatPanel : UserControl
         _memberNames.Clear();
         _drafts.Clear();
         _removedGroups.Clear();
-        _historyCursors.Clear();
         _listBusy = _refreshQueued = _historyBusy = _historyLoaded = _sending = _dialogOpen = _sendNeedsRefresh = _createNeedsRefresh = false;
         _nextBeforeId = null;
         groupsList.Items.Clear();
@@ -172,7 +187,13 @@ public sealed class GroupChatPanel : UserControl
 
     public async Task RefreshAsync()
     {
-        if (!Authenticated) { if (Active) { groupStatusLabel.Text = "Kết nối và đăng nhập để sử dụng nhóm."; UpdateActions(); } return; }
+        if (!Active) return;
+        if (!Authenticated)
+        {
+            groupStatusLabel.Text = "Kết nối và đăng nhập để sử dụng nhóm.";
+            UpdateActions();
+            return;
+        }
         if (_listBusy) { _refreshQueued = true; return; }
         var session = _sessionVersion;
         var token = _sessionLifetime.Token;
@@ -185,7 +206,6 @@ public sealed class GroupChatPanel : UserControl
                 _refreshQueued = false;
                 groupStatusLabel.Text = "Đang tải danh sách nhóm…";
                 var groups = new Dictionary<int, GroupSummary>();
-                var cursors = new HashSet<int>();
                 int? cursor = null;
                 do
                 {
@@ -194,21 +214,28 @@ public sealed class GroupChatPanel : UserControl
                     if (!CurrentSession(session)) return;
                     foreach (var group in page.Items)
                         if (!_removedGroups.Contains(group.Id)) groups[group.Id] = group;
-                    if (page.NextAfterId is { } next && (next <= (cursor ?? 0) || !cursors.Add(next)))
+                    // ID phải tăng qua mỗi trang nên không cần một HashSet để dò trang lặp.
+                    if (page.NextAfterId.HasValue && page.NextAfterId.Value <= cursor.GetValueOrDefault())
                         throw new InvalidDataException("Server trả con trỏ danh sách nhóm không hợp lệ.");
                     cursor = page.NextAfterId;
                 } while (cursor is not null);
                 if (!CurrentSession(session)) return;
-                // Events received during a snapshot trigger one more complete refresh.
+                // Nếu nhóm thay đổi trong lúc tải, lấy lại danh sách mới nhất.
                 if (_refreshQueued) continue;
                 _groups.Clear();
                 foreach (var group in groups.Values)
                     if (!_removedGroups.Contains(group.Id)) _groups[group.Id] = group;
                 _createNeedsRefresh = false;
                 RenderGroups();
-                groupStatusLabel.Text = _groups.Count == 0 ? "Bạn chưa có nhóm. Chọn Tạo nhóm để bắt đầu." : _selected is null ? "Chọn một nhóm để xem lịch sử và gửi tin nhắn." : $"{_groups.Count} nhóm · Chọn Thành viên để xem danh sách.";
+                if (_groups.Count == 0)
+                    groupStatusLabel.Text = "Bạn chưa có nhóm. Chọn Tạo nhóm để bắt đầu.";
+                else if (_selected == null)
+                    groupStatusLabel.Text = "Chọn một nhóm để xem lịch sử và gửi tin nhắn.";
+                else
+                    groupStatusLabel.Text = $"{_groups.Count} nhóm · Chọn Thành viên để xem danh sách.";
             } while (_refreshQueued && CurrentSession(session));
         }
+        // Đổi phiên/đóng màn hình thì ngừng tải; không cần hiện lỗi cho người dùng.
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception error) { if (CurrentSession(session)) groupStatusLabel.Text = error.Message; }
         finally
@@ -245,7 +272,7 @@ public sealed class GroupChatPanel : UserControl
     {
         if (_selected?.Id == group?.Id) return;
         if (_activeDialog is GroupMembersDialog) _activeDialog.Close();
-        if (_selected is { } previous) _drafts[previous.Id] = groupMessageBox.Text;
+        if (_selected != null) _drafts[_selected.Id] = groupMessageBox.Text;
         _selectionVersion++;
         _selectionLifetime.Cancel();
         _selectionLifetime.Dispose();
@@ -253,11 +280,12 @@ public sealed class GroupChatPanel : UserControl
         _selected = group;
         _messages.Clear();
         _memberNames.Clear();
-        _historyCursors.Clear();
         _nextBeforeId = null;
         _historyBusy = _historyLoaded = _sending = _sendNeedsRefresh = false;
         groupMessages.Clear();
-        groupMessageBox.Text = group is not null && _drafts.TryGetValue(group.Id, out var draft) ? draft : "";
+        groupMessageBox.Clear();
+        if (group != null && _drafts.TryGetValue(group.Id, out string? draft))
+            groupMessageBox.Text = draft;
         groupTitleLabel.Text = group?.GroupName ?? "Trò chuyện nhóm";
         groupStatusLabel.Text = group is null ? "Chọn một nhóm để xem lịch sử và gửi tin nhắn." : "Đang tải lịch sử nhóm…";
         UpdateActions();
@@ -270,13 +298,14 @@ public sealed class GroupChatPanel : UserControl
 
     private async Task LoadHistoryAsync()
     {
-        if (!Authenticated || _selected is not { } group || _historyBusy || (_historyLoaded && _nextBeforeId is null && !_sendNeedsRefresh)) return;
+        GroupSummary? group = _selected;
+        if (!Authenticated || group == null || _historyBusy) return;
+        if (_historyLoaded && _nextBeforeId == null && !_sendNeedsRefresh) return;
         var session = _sessionVersion;
         var selection = _selectionVersion;
         var token = _selectionLifetime.Token;
         bool syncingUnknown = _sendNeedsRefresh;
         var before = _historyLoaded && !syncingUnknown ? _nextBeforeId : null;
-        if (syncingUnknown) _historyCursors.Clear();
         _historyBusy = true;
         groupStatusLabel.Text = "Đang tải lịch sử nhóm…";
         UpdateActions();
@@ -284,29 +313,48 @@ public sealed class GroupChatPanel : UserControl
         {
             var result = await _client.RequestAsync<HistoryResult>("chat.history.request", new { PeerId = (int?)null, GroupId = group.Id, BeforeId = before, Limit = 10 }, token);
             if (!CurrentSelection(session, selection, group.Id)) return;
-            if (result.NextBeforeId is { } next && (next <= 0 || (before is { } old && next >= old) || !_historyCursors.Add(next)))
-                throw new InvalidDataException("Server trả con trỏ lịch sử không hợp lệ.");
+            // Lấy tin cũ hơn thì ID phải giảm, nhờ đó không thể tải lặp một trang.
+            if (result.NextBeforeId.HasValue)
+            {
+                int next = result.NextBeforeId.Value;
+                if (next <= 0 || (before.HasValue && next >= before.Value))
+                    throw new InvalidDataException("Server trả con trỏ lịch sử không hợp lệ.");
+            }
             foreach (var message in result.Items) MergeMessage(message);
             _nextBeforeId = result.NextBeforeId;
             _historyLoaded = true;
             if (syncingUnknown) _sendNeedsRefresh = false;
             RenderMessages(before is null);
-            groupStatusLabel.Text = syncingUnknown ? "Đã đồng bộ lịch sử. Kiểm tra tin nhắn đã lưu trước khi gửi lại bản nháp." : _messages.Count == 0 ? "Nhóm chưa có tin nhắn. Hãy gửi lời chào đầu tiên." : _nextBeforeId is null ? "Đã tải hết lịch sử nhóm." : "Có thể tải thêm tin nhắn cũ.";
+            if (syncingUnknown)
+                groupStatusLabel.Text = "Đã đồng bộ lịch sử. Kiểm tra tin nhắn đã lưu trước khi gửi lại bản nháp.";
+            else if (_messages.Count == 0)
+                groupStatusLabel.Text = "Nhóm chưa có tin nhắn. Hãy gửi lời chào đầu tiên.";
+            else if (_nextBeforeId == null)
+                groupStatusLabel.Text = "Đã tải hết lịch sử nhóm.";
+            else
+                groupStatusLabel.Text = "Có thể tải thêm tin nhắn cũ.";
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception error) { if (CurrentSelection(session, selection, group.Id)) groupStatusLabel.Text = error.Message; }
-        finally { if (CurrentSelection(session, selection, group.Id)) { _historyBusy = false; UpdateActions(); } }
+        finally
+        {
+            if (CurrentSelection(session, selection, group.Id))
+            {
+                _historyBusy = false;
+                UpdateActions();
+            }
+        }
     }
 
     private async Task LoadMemberNamesAsync()
     {
-        if (!Authenticated || _selected is not { } group) return;
+        GroupSummary? group = _selected;
+        if (!Authenticated || group == null) return;
         var session = _sessionVersion;
         var selection = _selectionVersion;
         var namesVersion = ++_namesVersion;
         var token = _selectionLifetime.Token;
         var names = new Dictionary<int, string>();
-        var cursors = new HashSet<int>();
         int? cursor = null;
         try
         {
@@ -316,7 +364,7 @@ public sealed class GroupChatPanel : UserControl
                 var page = await _client.RequestAsync<PageResult<UserSummary>>("group.members.request", new { GroupId = group.Id, Limit = 50, AfterId = cursor }, token);
                 if (!CurrentSelection(session, selection, group.Id) || namesVersion != _namesVersion) return;
                 foreach (var member in page.Items) names[member.Id] = member.DisplayName;
-                if (page.NextAfterId is { } next && (next <= (cursor ?? 0) || !cursors.Add(next)))
+                if (page.NextAfterId.HasValue && page.NextAfterId.Value <= cursor.GetValueOrDefault())
                     throw new InvalidDataException("Server trả con trỏ thành viên không hợp lệ.");
                 cursor = page.NextAfterId;
             } while (cursor is not null);
@@ -337,15 +385,29 @@ public sealed class GroupChatPanel : UserControl
     private void RenderMessages(bool scrollToEnd)
     {
         groupMessages.SetMessages(_messages.Values.OrderBy(message => message.Id), _user?.Id,
-            id => _memberNames.GetValueOrDefault(id, $"Người dùng #{id}"), scrollToEnd);
+            GetMemberName, scrollToEnd);
+    }
+
+    private string GetMemberName(int id)
+    {
+        if (_memberNames.TryGetValue(id, out string? name)) return name;
+        return $"Người dùng #{id}";
     }
 
     private async Task SendAsync()
     {
-        if (!Authenticated || _selected is not { } group || _sending || _dialogOpen || !_historyLoaded || _sendNeedsRefresh || _removedGroups.Contains(group.Id)) return;
+        GroupSummary? group = _selected;
+        if (!Authenticated || group == null || _sending || _dialogOpen || !_historyLoaded || _sendNeedsRefresh) return;
+        if (_removedGroups.Contains(group.Id)) return;
         var content = groupMessageBox.Text;
         if (string.IsNullOrWhiteSpace(content)) return;
-        if (content.EnumerateRunes().Count() > 2000 || Encoding.UTF8.GetByteCount(content) > 4000 || content.Any(character => char.IsControl(character) && character is not ('\t' or '\r' or '\n')))
+        bool hasControlCharacter = false;
+        foreach (char character in content)
+        {
+            if (char.IsControl(character) && character != '\t' && character != '\r' && character != '\n')
+                hasControlCharacter = true;
+        }
+        if (content.EnumerateRunes().Count() > 2000 || Encoding.UTF8.GetByteCount(content) > 4000 || hasControlCharacter)
         {
             groupStatusLabel.Text = "Tin nhắn tối đa 2.000 ký tự và 4.000 byte UTF-8; không chứa ký tự điều khiển ngoài xuống dòng và tab.";
             return;
@@ -372,11 +434,19 @@ public sealed class GroupChatPanel : UserControl
         {
             if (CurrentSelection(session, selection, group.Id))
             {
-                _sendNeedsRefresh = error is TimeoutException or IOException;
+                // Mất phản hồi không có nghĩa là server chưa lưu tin; giữ bản nháp và tải lại.
+                _sendNeedsRefresh = error is TimeoutException || error is IOException;
                 groupStatusLabel.Text = _sendNeedsRefresh ? "Kết quả gửi chưa xác định. Chọn Đồng bộ tin nhắn trước khi gửi tiếp." : error.Message;
             }
         }
-        finally { if (CurrentSelection(session, selection, group.Id)) { _sending = false; UpdateActions(); } }
+        finally
+        {
+            if (CurrentSelection(session, selection, group.Id))
+            {
+                _sending = false;
+                UpdateActions();
+            }
+        }
     }
 
     private void CreateGroup()
@@ -389,7 +459,9 @@ public sealed class GroupChatPanel : UserControl
         UpdateActions();
         try
         {
-            if (dialog.ShowDialog(this) != DialogResult.OK || !CurrentSession(session) || dialog.CreatedGroup is not { } group || _removedGroups.Contains(group.Id)) return;
+            if (dialog.ShowDialog(this) != DialogResult.OK || !CurrentSession(session)) return;
+            GroupSummary? group = dialog.CreatedGroup;
+            if (group == null || _removedGroups.Contains(group.Id)) return;
             _groups[group.Id] = group;
             RenderGroups();
             SelectGroup(group);
@@ -413,7 +485,8 @@ public sealed class GroupChatPanel : UserControl
 
     private void ShowMembers()
     {
-        if (!Authenticated || _user is null || _selected is not { } group || _dialogOpen || _sending) return;
+        GroupSummary? group = _selected;
+        if (!Authenticated || _user == null || group == null || _dialogOpen || _sending) return;
         var session = _sessionVersion;
         var selection = _selectionVersion;
         using var dialog = new GroupMembersDialog(_client, group, _user, _selectionLifetime.Token);
@@ -425,12 +498,22 @@ public sealed class GroupChatPanel : UserControl
             dialog.ShowDialog(this);
             if (CurrentSelection(session, selection, group.Id) && (dialog.MembershipChanged || dialog.NeedsRefresh)) _ = LoadMemberNamesAsync();
         }
-        finally { if (Active && session == _sessionVersion) { _activeDialog = null; _dialogOpen = false; UpdateActions(); } }
+        finally
+        {
+            if (Active && session == _sessionVersion)
+            {
+                _activeDialog = null;
+                _dialogOpen = false;
+                UpdateActions();
+            }
+        }
     }
 
     public void HandleEvent(Packet packet)
     {
-        if (!Authenticated || packet.Payload is not { ValueKind: JsonValueKind.Object } payload) return;
+        if (!Authenticated || !packet.Payload.HasValue) return;
+        JsonElement payload = packet.Payload.Value;
+        if (payload.ValueKind != JsonValueKind.Object) return;
         try
         {
             if (packet.Type == "chat.message.event" && payload.TryGetProperty("Message", out var messageData))
@@ -445,8 +528,11 @@ public sealed class GroupChatPanel : UserControl
             if (!payload.TryGetProperty("GroupId", out var groupIdData) || !groupIdData.TryGetInt32(out var groupId) || groupId <= 0 ||
                 !payload.TryGetProperty("Action", out var actionData) || actionData.ValueKind != JsonValueKind.String) return;
             var action = actionData.GetString();
-            if (action is not ("created" or "member_added" or "member_removed")) return;
-            int? userId = payload.TryGetProperty("UserId", out var userData) && userData.ValueKind == JsonValueKind.Number && userData.TryGetInt32(out var id) ? id : null;
+            if (action != "created" && action != "member_added" && action != "member_removed") return;
+            int? userId = null;
+            if (payload.TryGetProperty("UserId", out var userData)
+                && userData.ValueKind == JsonValueKind.Number && userData.TryGetInt32(out int id))
+                userId = id;
             if (action == "member_removed" && userId == _user!.Id)
             {
                 _removedGroups.Add(groupId);
@@ -473,7 +559,7 @@ public sealed class GroupChatPanel : UserControl
             }
             _ = RefreshAsync();
         }
-        catch (Exception error) when (error is JsonException or InvalidOperationException or ArgumentException)
+        catch (Exception error) when (error is JsonException || error is InvalidOperationException || error is ArgumentException)
         {
             groupStatusLabel.Text = "Không đọc được sự kiện nhóm từ server. Hãy tải lại danh sách.";
         }
@@ -490,7 +576,10 @@ public sealed class GroupChatPanel : UserControl
         groupMessageBox.Enabled = selected && !_sending && !_dialogOpen && !_sendNeedsRefresh;
         sendGroupButton.Enabled = selected && !_sending && !_dialogOpen && _historyLoaded && !_sendNeedsRefresh && !string.IsNullOrWhiteSpace(groupMessageBox.Text);
         loadHistoryButton.Enabled = selected && !_historyBusy && !_dialogOpen && (!_historyLoaded || _nextBeforeId is not null || _sendNeedsRefresh);
-        loadHistoryButton.Text = _historyBusy ? "Đang tải…" : _sendNeedsRefresh ? "Đồng bộ tin nhắn" : !_historyLoaded ? "Tải lịch sử" : "Tải tin nhắn cũ";
+        if (_historyBusy) loadHistoryButton.Text = "Đang tải…";
+        else if (_sendNeedsRefresh) loadHistoryButton.Text = "Đồng bộ tin nhắn";
+        else if (!_historyLoaded) loadHistoryButton.Text = "Tải lịch sử";
+        else loadHistoryButton.Text = "Tải tin nhắn cũ";
     }
 
     protected override void Dispose(bool disposing)

@@ -39,11 +39,11 @@ public sealed class GroupMembersDialog : Form
         MinimizeBox = MaximizeBox = false;
         memberList.Name = "memberList";
         memberList.AccessibleName = "Danh sách thành viên nhóm";
-        addMemberButton = UiTheme.CreateButton("Thêm thành viên", async (_, _) => await MutateAsync(true), true);
+        addMemberButton = UiTheme.CreateButton("Thêm thành viên", AddMemberButton_Click, true);
         addMemberButton.Name = "addMemberButton";
-        removeMemberButton = UiTheme.CreateButton("Xóa thành viên", async (_, _) => await MutateAsync(false));
+        removeMemberButton = UiTheme.CreateButton("Xóa thành viên", RemoveMemberButton_Click);
         removeMemberButton.Name = "removeMemberButton";
-        var close = UiTheme.CreateButton("Đóng", (_, _) => Close());
+        var close = UiTheme.CreateButton("Đóng");
         close.DialogResult = DialogResult.Cancel;
         CancelButton = close;
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(20), ColumnCount = 1, RowCount = 6 };
@@ -64,13 +64,41 @@ public sealed class GroupMembersDialog : Form
         Controls.Add(layout);
         _status.MaximumSize = Size.Empty;
         _status.Dock = DockStyle.Fill;
-        memberList.SelectedIndexChanged += (_, _) => UpdateActions();
-        _friends.SelectedIndexChanged += (_, _) => UpdateActions();
-        Shown += async (_, _) => await LoadAsync();
+        memberList.SelectedIndexChanged += SelectionChanged;
+        _friends.SelectedIndexChanged += SelectionChanged;
+        Shown += GroupMembersDialog_Shown;
         UpdateActions();
     }
 
     private bool Active => !IsDisposed && !Disposing && !_lifetime.IsCancellationRequested;
+
+    private async void GroupMembersDialog_Shown(object? sender, EventArgs e)
+    {
+        await LoadAsync();
+    }
+
+    private void SelectionChanged(object? sender, EventArgs e)
+    {
+        UpdateActions();
+    }
+
+    private async void AddMemberButton_Click(object? sender, EventArgs e)
+    {
+        UserSummary? friend = _friends.SelectedItem as UserSummary;
+        if (friend == null || _members.Count >= 20) return;
+        await ChangeMemberAsync(friend, "group.member.add.request", "Đang thêm thành viên…");
+    }
+
+    private async void RemoveMemberButton_Click(object? sender, EventArgs e)
+    {
+        if (!removeMemberButton.Enabled || memberList.SelectedItems.Count != 1) return;
+        UserSummary? member = memberList.SelectedItems[0].Tag as UserSummary;
+        if (member == null || member.Id == _group.CreatedBy) return;
+        DialogResult answer = MessageBox.Show(this, $"Xóa {member.DisplayName} khỏi nhóm?",
+            "Xác nhận xóa thành viên", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (answer != DialogResult.Yes) return;
+        await ChangeMemberAsync(member, "group.member.remove.request", "Đang xóa thành viên…");
+    }
 
     private async Task LoadAsync()
     {
@@ -80,16 +108,19 @@ public sealed class GroupMembersDialog : Form
         try
         {
             var members = new Dictionary<int, UserSummary>();
-            var cursors = new HashSet<int>();
             int? cursor = null;
             do
             {
-                _lifetime.Token.ThrowIfCancellationRequested();
-                if (!_client.IsConnected) throw new IOException("Chưa kết nối tới server.");
                 var page = await _client.RequestAsync<PageResult<UserSummary>>("group.members.request", new { GroupId = _group.Id, Limit = 50, AfterId = cursor }, _lifetime.Token);
-                foreach (var user in page.Items) members[user.Id] = user;
-                if (page.NextAfterId is { } next && (next <= (cursor ?? 0) || !cursors.Add(next)))
+                foreach (UserSummary user in page.Items)
+                {
+                    members[user.Id] = user;
+                }
+                // Trang tiếp theo phải có ID lớn hơn trang trước, nên không thể lặp lại.
+                if (page.NextAfterId.HasValue && page.NextAfterId.Value <= cursor.GetValueOrDefault())
+                {
                     throw new InvalidDataException("Server trả con trỏ thành viên không hợp lệ.");
+                }
                 cursor = page.NextAfterId;
             } while (cursor is not null);
             if (!Active) return;
@@ -101,11 +132,23 @@ public sealed class GroupMembersDialog : Form
             if (!Active) return;
             RenderFriends();
             _loaded = true;
-            _status.Text = $"{_members.Count}/20 thành viên." + (_group.CreatedBy == _user.Id ? " Chủ nhóm có thể thêm hoặc xóa thành viên." : "Chỉ chủ nhóm có thể quản lý thành viên.");
+            _status.Text = $"{_members.Count}/20 thành viên. ";
+            if (_group.CreatedBy == _user.Id)
+                _status.Text += "Chủ nhóm có thể thêm hoặc xóa thành viên.";
+            else
+                _status.Text += "Chỉ chủ nhóm có thể quản lý thành viên.";
         }
+        // Đóng dialog hoặc đổi phiên thì bỏ kết quả đang chờ, không báo lỗi.
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception error) { if (Active) _status.Text = error.Message; }
-        finally { if (Active) { _busy = false; UpdateActions(); } }
+        finally
+        {
+            if (Active)
+            {
+                _busy = false;
+                UpdateActions();
+            }
+        }
     }
 
     private void RenderMembers()
@@ -121,33 +164,45 @@ public sealed class GroupMembersDialog : Form
 
     private void RenderFriends()
     {
-        var ids = _members.Select(user => user.Id).ToHashSet();
+        List<int> memberIds = new List<int>();
+        foreach (UserSummary member in _members)
+        {
+            memberIds.Add(member.Id);
+        }
         _friends.Items.Clear();
-        _friends.Items.AddRange(_acceptedFriends.Where(user => !ids.Contains(user.Id)).Cast<object>().ToArray());
+        foreach (UserSummary friend in _acceptedFriends)
+        {
+            if (!memberIds.Contains(friend.Id))
+            {
+                _friends.Items.Add(friend);
+            }
+        }
         if (_friends.Items.Count > 0) _friends.SelectedIndex = 0;
     }
 
     private void UpdateActions()
     {
         var allowed = Active && _client.IsConnected && _loaded && !_busy && _group.CreatedBy == _user.Id;
-        var selected = memberList.SelectedItems.Count == 1 ? memberList.SelectedItems[0].Tag as UserSummary : null;
+        UserSummary? selected = null;
+        if (memberList.SelectedItems.Count == 1)
+            selected = memberList.SelectedItems[0].Tag as UserSummary;
         addMemberButton.Enabled = allowed && _members.Count < 20 && _friends.SelectedItem is UserSummary;
         removeMemberButton.Enabled = allowed && selected is not null && selected.Id != _group.CreatedBy;
         _friends.Enabled = allowed;
     }
 
-    private async Task MutateAsync(bool add)
+    // Hai nút chọn người khác nhau, nhưng dùng chung bước gửi và tải lại danh sách.
+    private async Task ChangeMemberAsync(UserSummary selected, string requestType, string status)
     {
         if (!Active || _busy || !_loaded || !_client.IsConnected || _group.CreatedBy != _user.Id) return;
-        var selected = add ? _friends.SelectedItem as UserSummary : memberList.SelectedItems.Count == 1 ? memberList.SelectedItems[0].Tag as UserSummary : null;
-        if (selected is null || selected.Id == _group.CreatedBy || (add && _members.Count >= 20)) return;
-        if (!add && MessageBox.Show(this, $"Xóa {selected.DisplayName} khỏi nhóm?", "Xác nhận xóa thành viên", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        if (selected.Id == _group.CreatedBy) return;
         _busy = true;
         UpdateActions();
-        _status.Text = add ? "Đang thêm thành viên…" : "Đang xóa thành viên…";
+        _status.Text = status;
         try
         {
-            var result = await _client.RequestAsync<GroupMemberResult>(add ? "group.member.add.request" : "group.member.remove.request", new { GroupId = _group.Id, UserId = selected.Id }, _lifetime.Token);
+            var request = new { GroupId = _group.Id, UserId = selected.Id };
+            var result = await _client.RequestAsync<GroupMemberResult>(requestType, request, _lifetime.Token);
             if (!Active) return;
             if (result.GroupId != _group.Id || result.UserId != selected.Id) throw new InvalidDataException("Phản hồi thành viên không khớp yêu cầu.");
             MembershipChanged = true;
@@ -158,12 +213,21 @@ public sealed class GroupMembersDialog : Form
         {
             if (Active)
             {
-                NeedsRefresh = error is TimeoutException or IOException;
+                NeedsRefresh = error is TimeoutException || error is IOException;
                 if (NeedsRefresh) _loaded = false;
-                _status.Text = NeedsRefresh ? "Kết quả thay đổi chưa xác định. Đóng và mở lại danh sách thành viên để đồng bộ." : error.Message;
+                _status.Text = error.Message;
+                if (NeedsRefresh)
+                    _status.Text = "Kết quả thay đổi chưa xác định. Đóng và mở lại danh sách thành viên để đồng bộ.";
             }
         }
-        finally { if (Active) { _busy = false; UpdateActions(); } }
+        finally
+        {
+            if (Active)
+            {
+                _busy = false;
+                UpdateActions();
+            }
+        }
     }
 
     protected override void Dispose(bool disposing)

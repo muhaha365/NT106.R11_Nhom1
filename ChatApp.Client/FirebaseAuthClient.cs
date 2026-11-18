@@ -1,9 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Text.Json;
 using System.Net.Http.Json;
-using System.Diagnostics;
 
 namespace ChatApp.Client
 {
@@ -19,8 +16,10 @@ namespace ChatApp.Client
         private readonly string _apiKey;
         public FirebaseAuthClient(string apiKey)
         {
-            if(string.IsNullOrWhiteSpace(apiKey)) 
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
                 throw new ArgumentException("Chưa cấu hình FIREBASE_WEB_API_KEY.", nameof(apiKey));
+            }
             _apiKey = apiKey;
         }
         private async Task<string> SendAsync(string action, string email, string password, CancellationToken ct = default)
@@ -50,12 +49,21 @@ namespace ChatApp.Client
             return token.GetString()!;
         }
         public Task<string> RegisterAsync(string email, string password, CancellationToken ct = default)
-            => SendAsync("signUp", email, password, ct);
+        {
+            return SendAsync("signUp", email, password, ct);
+        }
         public Task<string> LoginAsync(string email, string password, CancellationToken ct = default)
-            => SendAsync("signInWithPassword", email, password, ct);
+        {
+            return SendAsync("signInWithPassword", email, password, ct);
+        }
     }
-    public sealed class FirebaseSignInException(string code) : Exception(code)
+    public sealed class FirebaseSignInException : Exception
     {
-        public string Code { get; } = code;
+        public string Code { get; }
+
+        public FirebaseSignInException(string code) : base(code)
+        {
+            Code = code;
+        }
     }
 }

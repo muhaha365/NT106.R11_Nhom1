@@ -1,14 +1,6 @@
 ﻿using ChatApp.Shared.Contracts;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Data.Common;
-using System.Drawing;
-using System.Security.Cryptography; //thư viện dùng cho hàm băm mật khẩu
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Windows.Forms;
 using static ChatApp.Client.AuthMessages;
 
 namespace ChatApp.Client.Forms
@@ -73,9 +65,15 @@ namespace ChatApp.Client.Forms
                 using var protocol = new ProtocolClient();
 
                 // Chỉ gọi signUp khi người dùng thực sự muốn tạo tài khoản mới.
-                string idToken = completingProfile
-                    ? await firebase.LoginAsync(email, password)
-                    : await firebase.RegisterAsync(email, password);
+                string idToken;
+                if (completingProfile)
+                {
+                    idToken = await firebase.LoginAsync(email, password);
+                }
+                else
+                {
+                    idToken = await firebase.RegisterAsync(email, password);
+                }
 
                 // Từ thời điểm đã nhận token, mọi lần thử tiếp phải đi đường đăng nhập.
                 chkExistingAccount.Checked = true;
@@ -89,26 +87,11 @@ namespace ChatApp.Client.Forms
                 MessageBox.Show(this, $"Đã hoàn tất hồ sơ {result.User.Username}. Bạn có thể đăng nhập.");
                 Close();
             }
-            catch (ProtocolRequestException ex) when (ex.Code == "PROFILE_REQUIRED")
+            catch (Exception error)
             {
-                MessageBox.Show(this,
-                    "Tài khoản Firebase đã có. Mở Đăng ký, chọn Hoàn tất hồ sơ và nhập lại email/mật khẩu.");
-            }
-            catch (FirebaseSignInException ex)
-            {
-                MessageBox.Show(this, FirebaseErrorMessage(ex.Code));
-            }
-            catch (ProtocolRequestException ex)
-            {
-                MessageBox.Show(this, ex.Message);
-            }
-            catch (ArgumentException ex)
-            {
-                MessageBox.Show(this, ex.Message);
-            }
-            catch (Exception)
-            {
-                MessageBox.Show(this, "Chưa hoàn tất đăng ký hoặc hồ sơ. Kiểm tra kết nối và thử lại.");
+                string message = AuthenticationErrorMessage(
+                    error, "Chưa hoàn tất đăng ký hoặc hồ sơ. Kiểm tra kết nối và thử lại.");
+                MessageBox.Show(this, message);
             }
             finally
             {
