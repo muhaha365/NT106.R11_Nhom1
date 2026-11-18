@@ -11,4 +11,5 @@ TestResults/
 appsettings.Local.json
 **/uploads/
 /handoff
-*.ini
+note.ini
+/docs

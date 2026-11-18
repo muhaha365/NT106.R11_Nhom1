@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.Text.Json;
-using System.Text;
 
 namespace ChatApp.Shared;
 
@@ -28,15 +27,6 @@ public class PacketIO
         {
             await _stream.WriteAsync(header, ct);
             await _stream.WriteAsync(payload, ct);
-        }
-        catch(OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch(Exception ex)
-        {
-            Console.WriteLine($"Lỗi khi gửi gói tin: {ex.Message}");
-            throw;
         }
         finally
         {

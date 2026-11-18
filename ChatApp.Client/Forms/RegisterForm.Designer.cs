@@ -95,7 +95,6 @@
             panel2.Name = "panel2";
             panel2.Size = new Size(757, 373);
             panel2.TabIndex = 5;
-            panel2.Paint += panel2_Paint;
             // 
             // chkExistingAccount
             // 
@@ -185,7 +184,6 @@
             txtPassword.Size = new Size(306, 34);
             txtPassword.TabIndex = 22;
             txtPassword.UseSystemPasswordChar = true;
-            txtPassword.TextChanged += txtPassword_TextChanged;
             // 
             // label10
             // 

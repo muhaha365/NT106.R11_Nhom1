@@ -1,7 +1,3 @@
-using System.Security.Cryptography;
-using ChatApp.Shared;
-using System.Text;
-using System.Text.Json;
 using ChatApp.Shared.Contracts;
 using static ChatApp.Client.AuthMessages;
 
@@ -14,19 +10,6 @@ namespace ChatApp.Client.Forms
             InitializeComponent();
         }
 
-        private string HashSHA256(string rawData)
-        {
-            using (SHA256 sha256Hash = SHA256.Create())
-            {
-                byte[] bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(rawData));
-                StringBuilder builder = new StringBuilder();
-                for (int i = 0; i < bytes.Length; i++)
-                {
-                    builder.Append(bytes[i].ToString("x2"));
-                }
-                return builder.ToString();
-            }
-        }
 
         private async void btn_connect_Click(object sender, EventArgs e)
         {
@@ -53,46 +36,33 @@ namespace ChatApp.Client.Forms
                 using var main = new MainForm(protocol, result.User);
                 protocol = null; // MainForm sở hữu kết nối từ đây, DisposeConnection đã có sẵn.
                 Hide();
-                try { main.ShowDialog(); }
-                finally { if (!IsDisposed) Show(); }
+                try
+                {
+                    main.ShowDialog();
+                }
+                finally
+                {
+                    if (!IsDisposed)
+                    {
+                        Show();
+                    }
+                }
             }
-            catch (ProtocolRequestException ex) when (ex.Code == "PROFILE_REQUIRED")
+            catch (Exception error)
             {
-                MessageBox.Show(this,
-                    "Tài khoản Firebase đã có. Mở Đăng ký, chọn Hoàn tất hồ sơ và nhập lại email/mật khẩu.");
-            }
-            catch (FirebaseSignInException ex)
-            {
-                MessageBox.Show(this, FirebaseErrorMessage(ex.Code));
-            }
-            catch (ProtocolRequestException ex)
-            {
-                MessageBox.Show(this, ex.Message);
-            }
-            catch (ArgumentException ex)
-            {
-                MessageBox.Show(this, ex.Message);
-            }
-            catch (Exception)
-            {
-                MessageBox.Show(this, "Chưa đăng nhập được. Kiểm tra kết nối và thử lại.");
+                string message = AuthenticationErrorMessage(
+                    error, "Chưa đăng nhập được. Kiểm tra kết nối và thử lại.");
+                MessageBox.Show(this, message);
             }
             finally
             {
                 protocol?.Dispose();
-                if (!IsDisposed) { btn_connect.Enabled = true; btn_connect.Text = "Sign In"; }
+                if (!IsDisposed)
+                {
+                    btn_connect.Enabled = true;
+                    btn_connect.Text = "Sign In";
+                }
             }
-        }
-
-
-        protected override void OnFormClosed(FormClosedEventArgs e)
-        {
-            base.OnFormClosed(e);
-        }
-
-        private void LoginForm_Load(object sender, EventArgs e)
-        {
-
         }
 
         private void label13_Click(object sender, EventArgs e)
@@ -101,11 +71,6 @@ namespace ChatApp.Client.Forms
             frmres.Show();
             frmres.FormClosed += (s, args) => this.Show();
             this.Hide();
-        }
-
-        private void label12_Click(object sender, EventArgs e)
-        {
-
         }
 
         private void btn_demo_chat_Click(object sender, EventArgs e)

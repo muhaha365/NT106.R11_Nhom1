@@ -37,10 +37,10 @@ public sealed class CreateGroupDialog : Form
         Size = new Size(480, 560);
         MinimizeBox = false;
         MaximizeBox = false;
-        confirmCreateGroupButton = UiTheme.CreateButton("Tạo nhóm", async (_, _) => await CreateAsync(), true);
+        confirmCreateGroupButton = UiTheme.CreateButton("Tạo nhóm", CreateButton_Click, true);
         confirmCreateGroupButton.Name = "confirmCreateGroupButton";
         confirmCreateGroupButton.Enabled = false;
-        var cancel = UiTheme.CreateButton("Hủy", (_, _) => Close());
+        var cancel = UiTheme.CreateButton("Hủy");
         cancel.DialogResult = DialogResult.Cancel;
         CancelButton = cancel;
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(20), ColumnCount = 1, RowCount = 7 };
@@ -61,14 +61,27 @@ public sealed class CreateGroupDialog : Form
         Controls.Add(layout);
         _status.MaximumSize = Size.Empty;
         _status.Dock = DockStyle.Fill;
-        Shown += async (_, _) => await LoadFriendsAsync();
-        groupFriendChoices.ItemCheck += (_, e) => {
-            if (e.NewValue == CheckState.Checked && groupFriendChoices.CheckedItems.Count >= 19)
-            {
-                e.NewValue = CheckState.Unchecked;
-                _status.Text = "Chỉ có thể chọn tối đa 19 bạn bè.";
-            }
-        };
+        Shown += CreateGroupDialog_Shown;
+        groupFriendChoices.ItemCheck += FriendChoices_ItemCheck;
+    }
+
+    private async void CreateGroupDialog_Shown(object? sender, EventArgs e)
+    {
+        await LoadFriendsAsync();
+    }
+
+    private async void CreateButton_Click(object? sender, EventArgs e)
+    {
+        await CreateAsync();
+    }
+
+    private void FriendChoices_ItemCheck(object? sender, ItemCheckEventArgs e)
+    {
+        if (e.NewValue == CheckState.Checked && groupFriendChoices.CheckedItems.Count >= 19)
+        {
+            e.NewValue = CheckState.Unchecked;
+            _status.Text = "Chỉ có thể chọn tối đa 19 bạn bè.";
+        }
     }
 
     private async Task LoadFriendsAsync()
@@ -77,11 +90,15 @@ public sealed class CreateGroupDialog : Form
         {
             var friends = await GroupUiData.LoadFriendsAsync(_client, _user.Id, _lifetime.Token);
             if (!Active) return;
-            groupFriendChoices.Items.AddRange(friends.Cast<object>().ToArray());
+            foreach (UserSummary friend in friends)
+            {
+                groupFriendChoices.Items.Add(friend);
+            }
             _loaded = true;
             _status.Text = friends.Count == 0 ? "Chưa có bạn bè. Bạn vẫn có thể tạo nhóm chỉ có mình." : "Chọn thành viên từ danh sách bạn bè đã chấp nhận.";
             confirmCreateGroupButton.Enabled = true;
         }
+        // Đóng cửa sổ hoặc mất phiên đăng nhập thì ngừng tải, không báo lỗi.
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception error) { if (Active) _status.Text = error.Message; }
     }
@@ -89,21 +106,40 @@ public sealed class CreateGroupDialog : Form
     private async Task CreateAsync()
     {
         if (_busy || !_loaded || NeedsRefresh || !Active || !_client.IsConnected) return;
-        var name = groupNameBox.Text.Trim();
-        if (name.Length == 0 || name.EnumerateRunes().Count() > 100 || name.Any(char.IsControl))
+        string name = groupNameBox.Text.Trim();
+        bool hasControlCharacter = false;
+        foreach (char character in name)
+        {
+            if (char.IsControl(character)) hasControlCharacter = true;
+        }
+        // Đếm ký tự Unicode để một emoji không bị tính thành hai ký tự C#.
+        int characterCount = name.EnumerateRunes().Count();
+        if (characterCount == 0 || characterCount > 100 || hasControlCharacter)
         {
             _status.Text = "Tên nhóm cần có 1–100 ký tự và không chứa ký tự điều khiển.";
             groupNameBox.Focus();
             return;
         }
-        var ids = groupFriendChoices.CheckedItems.Cast<UserSummary>().Select(user => user.Id).Where(id => id != _user.Id).Distinct().ToArray();
-        if (ids.Length > 19) { _status.Text = "Chỉ có thể chọn tối đa 19 bạn bè."; return; }
+        List<int> memberIds = new List<int>();
+        foreach (UserSummary friend in groupFriendChoices.CheckedItems)
+        {
+            if (friend.Id != _user.Id && !memberIds.Contains(friend.Id))
+            {
+                memberIds.Add(friend.Id);
+            }
+        }
+        if (memberIds.Count > 19)
+        {
+            _status.Text = "Chỉ có thể chọn tối đa 19 bạn bè.";
+            return;
+        }
         _busy = true;
-        confirmCreateGroupButton.Enabled = groupNameBox.Enabled = groupFriendChoices.Enabled = false;
+        SetInputEnabled(false);
         _status.Text = "Đang tạo nhóm…";
         try
         {
-            var result = await _client.RequestAsync<GroupResult>("group.create.request", new { GroupName = name, MemberIds = ids }, _lifetime.Token);
+            var request = new { GroupName = name, MemberIds = memberIds.ToArray() };
+            var result = await _client.RequestAsync<GroupResult>("group.create.request", request, _lifetime.Token);
             if (!Active) return;
             CreatedGroup = result.Group;
             DialogResult = DialogResult.OK;
@@ -114,8 +150,11 @@ public sealed class CreateGroupDialog : Form
         {
             if (Active)
             {
-                NeedsRefresh = error is TimeoutException or IOException;
-                _status.Text = NeedsRefresh ? "Kết quả tạo nhóm chưa xác định. Đóng cửa sổ và tải lại danh sách nhóm trước khi tạo tiếp." : error.Message;
+                // Có thể server đã tạo nhóm nhưng phản hồi bị mất trên đường về.
+                NeedsRefresh = error is TimeoutException || error is IOException;
+                _status.Text = error.Message;
+                if (NeedsRefresh)
+                    _status.Text = "Kết quả tạo nhóm chưa xác định. Đóng cửa sổ và tải lại danh sách nhóm trước khi tạo tiếp.";
             }
         }
         finally
@@ -123,12 +162,19 @@ public sealed class CreateGroupDialog : Form
             if (Active)
             {
                 _busy = false;
-                confirmCreateGroupButton.Enabled = groupNameBox.Enabled = groupFriendChoices.Enabled = _client.IsConnected && !NeedsRefresh;
+                SetInputEnabled(_client.IsConnected && !NeedsRefresh);
             }
         }
     }
 
     private bool Active => !IsDisposed && !Disposing && !_lifetime.IsCancellationRequested;
+
+    private void SetInputEnabled(bool enabled)
+    {
+        confirmCreateGroupButton.Enabled = enabled;
+        groupNameBox.Enabled = enabled;
+        groupFriendChoices.Enabled = enabled;
+    }
 
     protected override void Dispose(bool disposing)
     {
@@ -142,17 +188,23 @@ internal static class GroupUiData
     internal static async Task<List<UserSummary>> LoadFriendsAsync(ProtocolClient client, int ownId, CancellationToken cancellationToken)
     {
         var friends = new Dictionary<int, UserSummary>();
-        var cursors = new HashSet<int>();
         int? cursor = null;
         do
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!client.IsConnected) throw new IOException("Chưa kết nối tới server.");
+            // RequestAsync kiểm tra kết nối và việc hủy yêu cầu.
             var page = await client.RequestAsync<PageResult<FriendEntry>>("friend.list.request", new { Status = "Accepted", Limit = 50, AfterId = cursor }, cancellationToken);
-            foreach (var entry in page.Items)
-                if (entry.User.Id != ownId && entry.Friendship.Status == "Accepted") friends[entry.User.Id] = entry.User;
-            if (page.NextAfterId is { } next && (next <= (cursor ?? 0) || !cursors.Add(next)))
+            foreach (FriendEntry entry in page.Items)
+            {
+                if (entry.User.Id != ownId && entry.Friendship.Status == "Accepted")
+                {
+                    friends[entry.User.Id] = entry.User;
+                }
+            }
+            // ID tăng sau mỗi trang; không cần lưu thêm danh sách các ID đã đọc.
+            if (page.NextAfterId.HasValue && page.NextAfterId.Value <= cursor.GetValueOrDefault())
+            {
                 throw new InvalidDataException("Server trả con trỏ danh sách bạn bè không hợp lệ.");
+            }
             cursor = page.NextAfterId;
         } while (cursor is not null);
         return friends.Values.OrderBy(user => user.DisplayName, StringComparer.CurrentCultureIgnoreCase).ToList();

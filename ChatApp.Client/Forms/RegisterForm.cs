@@ -1,59 +1,16 @@
 ﻿using ChatApp.Shared.Contracts;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Data.Common;
-using System.Drawing;
-using System.Security.Cryptography; //thư viện dùng cho hàm băm mật khẩu
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Windows.Forms;
 using static ChatApp.Client.AuthMessages;
 
 namespace ChatApp.Client.Forms
 {
     public partial class RegisterForm : Form
     {
-        // Khai báo biến _connection để dùng cho việc kết nối TCP
-        private readonly ClientConnection _connection = new();
-
         public RegisterForm()
         {
             InitializeComponent();
         }
-
-        //  Chèn hàm băm mật khẩu SHA256 
-        private string HashSHA256(string rawData)
-        {
-            using (SHA256 sha256Hash = SHA256.Create())
-            {
-                byte[] bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(rawData));
-                StringBuilder builder = new StringBuilder();
-                for (int i = 0; i < bytes.Length; i++)
-                {
-                    builder.Append(bytes[i].ToString("x2"));
-                }
-                return builder.ToString();
-            }
-        }
-
-        private void button1_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void label2_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void panel2_Paint(object sender, PaintEventArgs e)
-        {
-
-        }
-
-       
         private async void button1_Click_1(object sender, EventArgs e)
         {
             string email = txtEmail.Text.Trim();
@@ -108,9 +65,15 @@ namespace ChatApp.Client.Forms
                 using var protocol = new ProtocolClient();
 
                 // Chỉ gọi signUp khi người dùng thực sự muốn tạo tài khoản mới.
-                string idToken = completingProfile
-                    ? await firebase.LoginAsync(email, password)
-                    : await firebase.RegisterAsync(email, password);
+                string idToken;
+                if (completingProfile)
+                {
+                    idToken = await firebase.LoginAsync(email, password);
+                }
+                else
+                {
+                    idToken = await firebase.RegisterAsync(email, password);
+                }
 
                 // Từ thời điểm đã nhận token, mọi lần thử tiếp phải đi đường đăng nhập.
                 chkExistingAccount.Checked = true;
@@ -124,26 +87,11 @@ namespace ChatApp.Client.Forms
                 MessageBox.Show(this, $"Đã hoàn tất hồ sơ {result.User.Username}. Bạn có thể đăng nhập.");
                 Close();
             }
-            catch (ProtocolRequestException ex) when (ex.Code == "PROFILE_REQUIRED")
+            catch (Exception error)
             {
-                MessageBox.Show(this,
-                    "Tài khoản Firebase đã có. Mở Đăng ký, chọn Hoàn tất hồ sơ và nhập lại email/mật khẩu.");
-            }
-            catch (FirebaseSignInException ex)
-            {
-                MessageBox.Show(this, FirebaseErrorMessage(ex.Code));
-            }
-            catch (ProtocolRequestException ex)
-            {
-                MessageBox.Show(this, ex.Message);
-            }
-            catch (ArgumentException ex)
-            {
-                MessageBox.Show(this, ex.Message);
-            }
-            catch (Exception)
-            {
-                MessageBox.Show(this, "Chưa hoàn tất đăng ký hoặc hồ sơ. Kiểm tra kết nối và thử lại.");
+                string message = AuthenticationErrorMessage(
+                    error, "Chưa hoàn tất đăng ký hoặc hồ sơ. Kiểm tra kết nối và thử lại.");
+                MessageBox.Show(this, message);
             }
             finally
             {
@@ -153,17 +101,6 @@ namespace ChatApp.Client.Forms
                     btnRegister.Text = "Sign Up";
                 }
             }
-        }
-        private void txtPassword_TextChanged(object sender, EventArgs e)
-        {
-
-        }
-
-       // Dọn dẹp bộ nhớ và ngắt TCP khi người dùng tắt Form này đi
-        protected override void OnFormClosed(FormClosedEventArgs e)
-        {
-            _connection.Dispose();
-            base.OnFormClosed(e);
         }
     }
 }

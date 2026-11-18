@@ -29,9 +29,9 @@ public sealed class FriendsPanel : UserControl
     private readonly Dictionary<int, UserSummary> _found = new();
     private readonly Dictionary<int, bool> _presence = new();
     private CancellationTokenSource _sessionCancellation = new();
-    private CancellationTokenSource? _searchCancellation;
     private UserSummary? _user;
     private Task? _refreshTask;
+    // Mỗi lần đăng nhập/đăng xuất tăng số này; bỏ qua kết quả tải của phiên cũ.
     private int _sessionVersion;
     private bool _refreshing, _refreshAgain, _mutating, _searching, _needsRefresh, _disposed;
 
@@ -39,7 +39,8 @@ public sealed class FriendsPanel : UserControl
 
     public FriendsPanel(ProtocolClient client)
     {
-        _client = client ?? throw new ArgumentNullException(nameof(client));
+        ArgumentNullException.ThrowIfNull(client);
+        _client = client;
         Dock = DockStyle.Fill;
         BackColor = Color.White;
         Font = new Font("Segoe UI", 10);
@@ -75,23 +76,52 @@ public sealed class FriendsPanel : UserControl
         layout.Controls.Add(_status, 0, 3);
         Controls.Add(layout);
 
-        _refresh.Click += async (_, _) => await RefreshAsync();
-        _search.Click += async (_, _) => await SearchAsync();
-        _add.Click += async (_, _) => await AddAsync();
-        _remove.Click += async (_, _) => await RemoveAsync();
-        _accept.Click += async (_, _) => await RespondAsync(true);
-        _decline.Click += async (_, _) => await RespondAsync(false);
-        _open.Click += (_, _) => OpenSelectedFriend();
-        _friends.DoubleClick += (_, _) => OpenSelectedFriend();
-        _friends.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; OpenSelectedFriend(); } };
-        _searchBox.KeyDown += async (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; if (_search.Enabled) await SearchAsync(); } };
-        _searchBox.TextChanged += (_, _) => UpdateActions();
+        _refresh.Click += RefreshButton_Click;
+        _search.Click += SearchButton_Click;
+        _add.Click += AddButton_Click;
+        _remove.Click += RemoveButton_Click;
+        _accept.Click += AcceptButton_Click;
+        _decline.Click += DeclineButton_Click;
+        _open.Click += OpenFriend_Click;
+        _friends.DoubleClick += OpenFriend_Click;
+        _friends.KeyDown += Friends_KeyDown;
+        _searchBox.KeyDown += SearchBox_KeyDown;
+        _searchBox.TextChanged += SelectionChanged;
         foreach (var list in new[] { _friends, _pending, _results })
         {
-            list.SelectedIndexChanged += (_, _) => UpdateActions();
-            list.Resize += (_, _) => FitColumns(list);
+            list.SelectedIndexChanged += SelectionChanged;
+            list.Resize += List_Resize;
         }
         UpdateActions();
+    }
+
+    private async void RefreshButton_Click(object? sender, EventArgs e) { await RefreshAsync(); }
+    private async void SearchButton_Click(object? sender, EventArgs e) { await SearchAsync(); }
+    private async void AddButton_Click(object? sender, EventArgs e) { await AddAsync(); }
+    private async void RemoveButton_Click(object? sender, EventArgs e) { await RemoveAsync(); }
+    private async void AcceptButton_Click(object? sender, EventArgs e) { await RespondAsync(true); }
+    private async void DeclineButton_Click(object? sender, EventArgs e) { await RespondAsync(false); }
+    private void OpenFriend_Click(object? sender, EventArgs e) { OpenSelectedFriend(); }
+    private void SelectionChanged(object? sender, EventArgs e) { UpdateActions(); }
+
+    private void List_Resize(object? sender, EventArgs e)
+    {
+        ListView? list = sender as ListView;
+        if (list != null) FitColumns(list);
+    }
+
+    private void Friends_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyCode != Keys.Enter) return;
+        e.SuppressKeyPress = true;
+        OpenSelectedFriend();
+    }
+
+    private async void SearchBox_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyCode != Keys.Enter) return;
+        e.SuppressKeyPress = true;
+        if (_search.Enabled) await SearchAsync();
     }
 
     private void AddListTab(string title, Label hint, ListView list, params Control[] actions)
@@ -124,8 +154,9 @@ public sealed class FriendsPanel : UserControl
         var query = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 2, RowCount = 3 };
         query.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         query.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        query.Controls.Add(UiTheme.CreateHint("Tên đăng nhập hoặc tên hiển thị (1–50 ký tự)"), 0, 0);
-        query.SetColumnSpan(query.GetControlFromPosition(0, 0)!, 2);
+        Label hint = UiTheme.CreateHint("Tên đăng nhập hoặc tên hiển thị (1–50 ký tự)");
+        query.Controls.Add(hint, 0, 0);
+        query.SetColumnSpan(hint, 2);
         query.Controls.Add(_searchBox, 0, 1);
         query.Controls.Add(_search, 1, 1);
         _searchHint.MaximumSize = Size.Empty;
@@ -146,7 +177,6 @@ public sealed class FriendsPanel : UserControl
         _sessionCancellation.Cancel();
         _sessionCancellation.Dispose();
         _sessionCancellation = new CancellationTokenSource();
-        _searchCancellation?.Cancel();
         _user = user;
         _refreshTask = null;
         _refreshing = _refreshAgain = _mutating = _searching = _needsRefresh = false;
@@ -174,7 +204,7 @@ public sealed class FriendsPanel : UserControl
         if (_disposed) return Task.CompletedTask;
         if (!Ready) { SetStatus(UnavailableText); UpdateActions(); return Task.CompletedTask; }
         if (_mutating) { _refreshAgain = true; return Task.CompletedTask; }
-        if (_refreshTask is { IsCompleted: false }) { _refreshAgain = true; return _refreshTask; }
+        if (_refreshTask != null && !_refreshTask.IsCompleted) { _refreshAgain = true; return _refreshTask; }
         _refreshTask = RefreshCoreAsync(_sessionVersion, _sessionCancellation.Token);
         return _refreshTask;
     }
@@ -203,6 +233,7 @@ public sealed class FriendsPanel : UserControl
                 SetStatus($"{_accepted.Count} bạn bè · {_invitations.Count} lời mời.");
             } while (_refreshAgain && Current(version) && Ready);
         }
+        // Phiên đã đổi hoặc panel đã đóng: hủy tải là bình thường, không báo lỗi.
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception error)
         {
@@ -250,17 +281,20 @@ public sealed class FriendsPanel : UserControl
     {
         if (!_search.Enabled || !Ready) return;
         var query = _searchBox.Text.Trim();
-        if (query.EnumerateRunes().Count() is < 1 or > 50 || query.Any(char.IsControl))
+        int characterCount = query.EnumerateRunes().Count();
+        bool hasControlCharacter = false;
+        foreach (char character in query)
+        {
+            if (char.IsControl(character)) hasControlCharacter = true;
+        }
+        if (characterCount < 1 || characterCount > 50 || hasControlCharacter)
         {
             _searchHint.Text = "Nhập từ 1 đến 50 ký tự, không chứa ký tự điều khiển.";
             _searchBox.Focus();
             return;
         }
-        _searchCancellation?.Cancel();
-        _searchCancellation?.Dispose();
-        var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_sessionCancellation.Token);
-        _searchCancellation = cancellation;
-        var token = cancellation.Token;
+        // Nút tìm bị khóa trong lúc chờ, nên chỉ cần token của phiên đăng nhập.
+        var token = _sessionCancellation.Token;
         var version = _sessionVersion;
         _searching = true;
         _found.Clear();
@@ -283,7 +317,7 @@ public sealed class FriendsPanel : UserControl
                 }
                 after = NextCursor(after, page.NextAfterId, page.Items.Count);
             } while (after is not null);
-            if (!Current(version) || cancellation != _searchCancellation) return;
+            if (!Current(version)) return;
             foreach (var item in found) _found[item.Key] = item.Value;
             RenderSearch();
             _searchHint.Text = found.Count == 0 ? "Không tìm thấy người phù hợp." : $"Tìm thấy {found.Count} người. Chọn một người để gửi lời mời.";
@@ -295,156 +329,320 @@ public sealed class FriendsPanel : UserControl
         }
         finally
         {
-            if (Current(version) && cancellation == _searchCancellation) { _searching = false; UpdateActions(); }
+            if (Current(version)) { _searching = false; UpdateActions(); }
         }
     }
 
     private async Task AddAsync()
     {
-        if (!_add.Enabled || Selected<UserSummary>(_results) is not { } user) return;
-        await MutateAsync(async token =>
+        var user = Selected<UserSummary>(_results);
+        if (!_add.Enabled || user == null || !BeginChange("Đang gửi lời mời…"))
+        {
+            return;
+        }
+
+        int version = _sessionVersion;
+        var token = _sessionCancellation.Token;
+        try
         {
             var result = await _client.RequestAsync<FriendshipResult>("friend.add.request", new { UserId = user.Id }, token);
-            return () => ApplyFriendship(user, result.Friendship, "Pending");
-        }, "Đang gửi lời mời…", "Đã gửi lời mời kết bạn.");
+            // Không cập nhật kết quả cũ nếu người dùng đã đổi phiên trong lúc chờ.
+            if (!Current(version)) return;
+            ApplyFriendship(user, result.Friendship, "Pending");
+            RenderLists();
+            SetStatus("Đã gửi lời mời kết bạn.");
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception error)
+        {
+            if (Current(version)) ReportError(error, true);
+        }
+        finally
+        {
+            EndChange(version);
+        }
     }
 
     private async Task RespondAsync(bool accept)
     {
-        if (!(accept ? _accept.Enabled : _decline.Enabled) || Selected<FriendEntry>(_pending) is not { } entry) return;
-        await MutateAsync(async token =>
+        var entry = Selected<FriendEntry>(_pending);
+        bool buttonEnabled = accept ? _accept.Enabled : _decline.Enabled;
+        if (!buttonEnabled || entry == null || !BeginChange("Đang trả lời lời mời…"))
+        {
+            return;
+        }
+
+        int version = _sessionVersion;
+        var token = _sessionCancellation.Token;
+        try
         {
             var result = await _client.RequestAsync<FriendshipResult>("friend.respond.request", new { UserId = entry.Friendship.UserInvite, Accept = accept }, token);
-            return () => ApplyFriendship(entry.User, result.Friendship, accept ? "Accepted" : null);
-        }, "Đang trả lời lời mời…", accept ? "Đã chấp nhận lời mời." : "Đã từ chối lời mời.");
+            if (!Current(version)) return;
+            string? expectedStatus = accept ? "Accepted" : null;
+            ApplyFriendship(entry.User, result.Friendship, expectedStatus);
+            RenderLists();
+            SetStatus(accept ? "Đã chấp nhận lời mời." : "Đã từ chối lời mời.");
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception error)
+        {
+            if (Current(version)) ReportError(error, true);
+        }
+        finally
+        {
+            EndChange(version);
+        }
     }
 
     private async Task RemoveAsync()
     {
-        if (!_remove.Enabled || Selected<FriendEntry>(_friends) is not { } entry) return;
-        var sessionVersion = _sessionVersion;
-        if (MessageBox.Show(this, $"Xóa {entry.User.DisplayName} khỏi danh sách bạn bè?", "Xóa bạn", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.Yes || !Current(sessionVersion) || !Ready) return;
-        await MutateAsync(async token =>
+        var entry = Selected<FriendEntry>(_friends);
+        if (!_remove.Enabled || entry == null)
         {
-            var result = await _client.RequestAsync<UserIdResult>("friend.remove.request", new { UserId = entry.User.Id }, token);
-            return () =>
-            {
-                if (result.UserId != entry.User.Id) throw new InvalidDataException("Phản hồi xóa bạn không khớp người đã chọn.");
-                _accepted.Remove(result.UserId);
-            };
-        }, "Đang xóa bạn…", "Đã xóa bạn.");
-    }
+            return;
+        }
 
-    private async Task MutateAsync(Func<CancellationToken, Task<Action>> request, string loading, string success)
-    {
-        if (!Ready || _mutating || _refreshing || _needsRefresh) return;
-        var version = _sessionVersion;
+        int version = _sessionVersion;
+        var answer = MessageBox.Show(this, $"Xóa {entry.User.DisplayName} khỏi danh sách bạn bè?",
+            "Xóa bạn", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2);
+        if (answer != DialogResult.Yes || !Current(version))
+        {
+            return;
+        }
+        if (!BeginChange("Đang xóa bạn…"))
+        {
+            return;
+        }
+
         var token = _sessionCancellation.Token;
-        _mutating = true;
-        SetStatus(loading);
-        UpdateActions();
         try
         {
-            var apply = await request(token);
+            var result = await _client.RequestAsync<UserIdResult>("friend.remove.request", new { UserId = entry.User.Id }, token);
             if (!Current(version)) return;
-            apply();
+            if (result.UserId != entry.User.Id)
+            {
+                throw new InvalidDataException("Phản hồi xóa bạn không khớp người đã chọn.");
+            }
+            _accepted.Remove(result.UserId);
             RenderLists();
-            SetStatus(success);
+            SetStatus("Đã xóa bạn.");
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception error) { if (Current(version)) ReportError(error, true); }
+        catch (Exception error)
+        {
+            if (Current(version)) ReportError(error, true);
+        }
         finally
         {
-            if (Current(version))
-            {
-                _mutating = false;
-                UpdateActions();
-                if (_refreshAgain && Ready) { _refreshAgain = false; _ = RefreshAsync(); }
-            }
+            EndChange(version);
+        }
+    }
+
+    private bool BeginChange(string status)
+    {
+        if (!Ready || _mutating || _refreshing || _needsRefresh)
+        {
+            return false;
+        }
+        _mutating = true;
+        SetStatus(status);
+        UpdateActions();
+        return true;
+    }
+
+    private void EndChange(int version)
+    {
+        if (!Current(version)) return;
+        _mutating = false;
+        UpdateActions();
+        if (_refreshAgain && Ready)
+        {
+            _refreshAgain = false;
+            _ = RefreshAsync();
         }
     }
 
     private void ApplyFriendship(UserSummary user, FriendshipSummary? friendship, string? expectedStatus)
     {
-        if (friendship?.Status != expectedStatus) throw new InvalidDataException("Server chưa xác nhận đúng thay đổi quan hệ bạn bè.");
-        if (friendship is not null &&
-            (friendship.Status is not ("Accepted" or "Pending") || _user is null ||
-             !((friendship.UserInvite == _user.Id && friendship.UserReceive == user.Id) ||
-               (friendship.UserReceive == _user.Id && friendship.UserInvite == user.Id))))
-            throw new InvalidDataException("Server trả quan hệ bạn bè không hợp lệ.");
+        if (friendship?.Status != expectedStatus)
+        {
+            throw new InvalidDataException("Server chưa xác nhận đúng thay đổi quan hệ bạn bè.");
+        }
+        if (friendship != null)
+        {
+            bool validStatus = friendship.Status == "Accepted" || friendship.Status == "Pending";
+            bool sentByMe = friendship.UserInvite == _user?.Id && friendship.UserReceive == user.Id;
+            bool sentToMe = friendship.UserReceive == _user?.Id && friendship.UserInvite == user.Id;
+            if (!validStatus || (!sentByMe && !sentToMe))
+            {
+                throw new InvalidDataException("Server trả quan hệ bạn bè không hợp lệ.");
+            }
+        }
+
         _accepted.Remove(user.Id);
         _invitations.Remove(user.Id);
-        if (friendship is not null)
-            (friendship.Status == "Accepted" ? _accepted : _invitations)[user.Id] = new FriendEntry(user, friendship);
+        if (friendship != null)
+        {
+            var entry = new FriendEntry(user, friendship);
+            if (friendship.Status == "Accepted")
+            {
+                _accepted[user.Id] = entry;
+            }
+            else
+            {
+                _invitations[user.Id] = entry;
+            }
+        }
     }
 
     public void HandleEvent(Packet packet)
     {
-        if (!Ready) return;
+        if (!Ready)
+        {
+            return;
+        }
         if (packet.Type == "friend.changed.event")
         {
-            if (_mutating) _refreshAgain = true;
-            else _ = RefreshAsync();
+            if (_mutating)
+            {
+                _refreshAgain = true;
+            }
+            else
+            {
+                _ = RefreshAsync();
+            }
+            return;
         }
-        else if (packet.Type == "presence.changed.event" && packet.Payload is JsonElement payload && payload.ValueKind == JsonValueKind.Object &&
-                 payload.TryGetProperty("UserId", out var id) && id.ValueKind == JsonValueKind.Number && id.TryGetInt32(out var userId) && userId > 0 &&
-                 payload.TryGetProperty("IsOnline", out var online) && online.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        if (packet.Type != "presence.changed.event")
         {
-            _presence[userId] = online.GetBoolean();
-            RenderLists();
+            return;
         }
+        if (packet.Payload is not JsonElement payload || payload.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+        if (!payload.TryGetProperty("UserId", out var id) || id.ValueKind != JsonValueKind.Number
+            || !id.TryGetInt32(out int userId) || userId <= 0)
+        {
+            return;
+        }
+        if (!payload.TryGetProperty("IsOnline", out var online)
+            || (online.ValueKind != JsonValueKind.True && online.ValueKind != JsonValueKind.False))
+        {
+            return;
+        }
+
+        _presence[userId] = online.GetBoolean();
+        RenderLists();
     }
 
-    private UserSummary WithPresence(UserSummary user) => _presence.TryGetValue(user.Id, out var online) ? user with { IsOnline = online } : user;
+    private UserSummary WithPresence(UserSummary user)
+    {
+        if (!_presence.TryGetValue(user.Id, out bool online)) return user;
+        return new UserSummary(user.Id, user.Username, user.DisplayName, online);
+    }
     private static string PresenceText(UserSummary user) => user.IsOnline ? "Online" : "Offline";
-    private static T? Selected<T>(ListView list) where T : class => list.SelectedItems.Count == 0 ? null : list.SelectedItems[0].Tag as T;
+    // Tag lưu đối tượng ứng với dòng đang hiển thị trên ListView.
+    private static T? Selected<T>(ListView list) where T : class
+    {
+        if (list.SelectedItems.Count == 0) return null;
+        return list.SelectedItems[0].Tag as T;
+    }
 
     private void RenderLists()
     {
-        FillList(_friends, _accepted.Values.OrderBy(x => x.User.Id).Select(entry =>
+        FillFriendList(_friends, _accepted.Values);
+        FillFriendList(_pending, _invitations.Values);
+        int incoming = 0;
+        foreach (FriendEntry invitation in _invitations.Values)
         {
-            var current = entry with { User = WithPresence(entry.User) };
-            return new ListViewItem(new[] { current.User.DisplayName, current.User.Username, PresenceText(current.User) }) { Tag = current };
-        }));
-        FillList(_pending, _invitations.Values.OrderBy(x => x.User.Id).Select(entry =>
+            if (invitation.Friendship.UserReceive == _user?.Id) incoming++;
+        }
+        if (!Ready)
         {
-            var current = entry with { User = WithPresence(entry.User) };
-            return new ListViewItem(new[] { current.User.DisplayName, current.User.Username, current.Friendship.UserReceive == _user?.Id ? "Đã nhận" : "Đã gửi" }) { Tag = current };
-        }));
-        _friendsHint.Text = !Ready ? UnavailableText : _accepted.Count == 0 ? "Chưa có bạn bè. Mở Tìm người để gửi lời mời." : $"{_accepted.Count} bạn bè. Chọn một người để xem thông tin.";
-        var incoming = _invitations.Values.Count(x => x.Friendship.UserReceive == _user?.Id);
-        _pendingHint.Text = !Ready ? UnavailableText : _invitations.Count == 0 ? "Chưa có lời mời kết bạn." : $"{incoming} lời mời đã nhận · {_invitations.Count - incoming} lời mời đã gửi. Chỉ có thể trả lời lời mời đã nhận.";
+            _friendsHint.Text = UnavailableText;
+            _pendingHint.Text = UnavailableText;
+        }
+        else
+        {
+            _friendsHint.Text = _accepted.Count == 0
+                ? "Chưa có bạn bè. Mở Tìm người để gửi lời mời."
+                : $"{_accepted.Count} bạn bè. Chọn một người để xem thông tin.";
+            _pendingHint.Text = _invitations.Count == 0
+                ? "Chưa có lời mời kết bạn."
+                : $"{incoming} lời mời đã nhận · {_invitations.Count - incoming} lời mời đã gửi. Chỉ có thể trả lời lời mời đã nhận.";
+        }
         RenderSearch();
-        UpdateActions();
+    }
+
+    private void FillFriendList(ListView list, IEnumerable<FriendEntry> entries)
+    {
+        List<ListViewItem> rows = new List<ListViewItem>();
+        foreach (FriendEntry entry in entries.OrderBy(entry => entry.User.Id))
+        {
+            UserSummary user = WithPresence(entry.User);
+            string status = PresenceText(user);
+            if (entry.Friendship.Status == "Pending")
+                status = entry.Friendship.UserReceive == _user?.Id ? "Đã nhận" : "Đã gửi";
+            ListViewItem row = new ListViewItem(new[] { user.DisplayName, user.Username, status });
+            row.Tag = new FriendEntry(user, entry.Friendship);
+            rows.Add(row);
+        }
+        FillList(list, rows);
     }
 
     private void RenderSearch()
     {
-        FillList(_results, _found.Values.OrderBy(x => x.Id).Select(person =>
+        List<ListViewItem> rows = new List<ListViewItem>();
+        foreach (UserSummary person in _found.Values.OrderBy(person => person.Id))
         {
             var user = WithPresence(person);
-            var relationship = _accepted.ContainsKey(user.Id) ? " · Bạn bè" : _invitations.ContainsKey(user.Id) ? " · Đã có lời mời" : "";
-            return new ListViewItem(new[] { user.DisplayName, user.Username, PresenceText(user) + relationship }) { Tag = user };
-        }));
+            string relationship = "";
+            if (_accepted.ContainsKey(user.Id))
+            {
+                relationship = " · Bạn bè";
+            }
+            else if (_invitations.ContainsKey(user.Id))
+            {
+                relationship = " · Đã có lời mời";
+            }
+            ListViewItem row = new ListViewItem(new[] { user.DisplayName, user.Username, PresenceText(user) + relationship });
+            row.Tag = user;
+            rows.Add(row);
+        }
+        FillList(_results, rows);
         UpdateActions();
     }
 
     private static void FillList(ListView list, IEnumerable<ListViewItem> rows)
     {
-        var selectedId = list.SelectedItems.Count == 0 ? (int?)null : list.SelectedItems[0].Tag switch { FriendEntry friend => friend.User.Id, UserSummary user => user.Id, _ => null };
+        int? selectedId = null;
+        if (list.SelectedItems.Count > 0)
+            selectedId = GetUserId(list.SelectedItems[0]);
         list.BeginUpdate();
         try
         {
             list.Items.Clear();
             foreach (var row in rows)
             {
-                row.ToolTipText = string.Join(" · ", row.SubItems.Cast<ListViewItem.ListViewSubItem>().Select(item => item.Text));
+                List<string> details = new List<string>();
+                foreach (ListViewItem.ListViewSubItem cell in row.SubItems) details.Add(cell.Text);
+                row.ToolTipText = string.Join(" · ", details);
                 list.Items.Add(row);
-                var id = row.Tag switch { FriendEntry friend => friend.User.Id, UserSummary user => user.Id, _ => (int?)null };
+                int? id = GetUserId(row);
                 if (selectedId is not null && id == selectedId) row.Selected = true;
             }
         }
         finally { list.EndUpdate(); }
+    }
+
+    private static int? GetUserId(ListViewItem row)
+    {
+        FriendEntry? friend = row.Tag as FriendEntry;
+        if (friend != null) return friend.User.Id;
+        UserSummary? user = row.Tag as UserSummary;
+        if (user != null) return user.Id;
+        return null;
     }
 
     private static void FitColumns(ListView list)
@@ -457,7 +655,8 @@ public sealed class FriendsPanel : UserControl
 
     private void OpenSelectedFriend()
     {
-        if (_open.Enabled && Selected<FriendEntry>(_friends) is { } entry) FriendSelected?.Invoke(WithPresence(entry.User));
+        FriendEntry? entry = Selected<FriendEntry>(_friends);
+        if (_open.Enabled && entry != null) FriendSelected?.Invoke(WithPresence(entry.User));
     }
 
     private void UpdateActions()
@@ -470,7 +669,8 @@ public sealed class FriendsPanel : UserControl
         var canChange = idle && !_needsRefresh;
         _remove.Enabled = canChange && Selected<FriendEntry>(_friends) is not null;
         _open.Enabled = Ready && !_needsRefresh && Selected<FriendEntry>(_friends) is not null;
-        var incoming = Selected<FriendEntry>(_pending) is { } entry && entry.Friendship.Status == "Pending" && entry.Friendship.UserReceive == _user?.Id;
+        FriendEntry? entry = Selected<FriendEntry>(_pending);
+        bool incoming = entry != null && entry.Friendship.Status == "Pending" && entry.Friendship.UserReceive == _user?.Id;
         _accept.Enabled = _decline.Enabled = canChange && incoming;
         var selected = Selected<UserSummary>(_results);
         _add.Enabled = canChange && selected is not null && selected.Id != _user?.Id && !_accepted.ContainsKey(selected.Id) && !_invitations.ContainsKey(selected.Id);
@@ -480,7 +680,8 @@ public sealed class FriendsPanel : UserControl
 
     private void ReportError(Exception error, bool mutation)
     {
-        if (error is ProtocolRequestException { Code: "NOT_AUTHENTICATED" })
+        ProtocolRequestException? serverError = error as ProtocolRequestException;
+        if (serverError != null && serverError.Code == "NOT_AUTHENTICATED")
         {
             SetSession(null);
             SetStatus("Phiên đăng nhập không còn hợp lệ. Hãy đăng nhập lại.");
@@ -491,7 +692,7 @@ public sealed class FriendsPanel : UserControl
             _needsRefresh = true;
             SetStatus("Kết quả thao tác chưa xác định. Hãy Tải lại dữ liệu trước khi thử lại. " + error.Message);
         }
-        else if (error is ProtocolRequestException { Code: "UNKNOWN_TYPE" or "UNSUPPORTED_VERSION" })
+        else if (serverError != null && (serverError.Code == "UNKNOWN_TYPE" || serverError.Code == "UNSUPPORTED_VERSION"))
             SetStatus("Server chưa hỗ trợ chức năng bạn bè này. " + error.Message);
         else SetStatus(error.Message + (Ready ? " Chọn Tải lại để đồng bộ danh sách." : " " + UnavailableText));
         UpdateActions();
@@ -505,8 +706,6 @@ public sealed class FriendsPanel : UserControl
             _sessionVersion++;
             _sessionCancellation.Cancel();
             _sessionCancellation.Dispose();
-            _searchCancellation?.Cancel();
-            _searchCancellation?.Dispose();
         }
         base.Dispose(disposing);
     }
