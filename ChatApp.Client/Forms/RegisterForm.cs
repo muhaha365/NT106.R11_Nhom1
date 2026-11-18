@@ -15,45 +15,10 @@ namespace ChatApp.Client.Forms
 {
     public partial class RegisterForm : Form
     {
-        // Khai báo biến _connection để dùng cho việc kết nối TCP
-        private readonly ClientConnection _connection = new();
-
         public RegisterForm()
         {
             InitializeComponent();
         }
-
-        //  Chèn hàm băm mật khẩu SHA256 
-        private string HashSHA256(string rawData)
-        {
-            using (SHA256 sha256Hash = SHA256.Create())
-            {
-                byte[] bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(rawData));
-                StringBuilder builder = new StringBuilder();
-                for (int i = 0; i < bytes.Length; i++)
-                {
-                    builder.Append(bytes[i].ToString("x2"));
-                }
-                return builder.ToString();
-            }
-        }
-
-        private void button1_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void label2_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void panel2_Paint(object sender, PaintEventArgs e)
-        {
-
-        }
-
-       
         private async void button1_Click_1(object sender, EventArgs e)
         {
             string email = txtEmail.Text.Trim();
@@ -153,17 +118,6 @@ namespace ChatApp.Client.Forms
                     btnRegister.Text = "Sign Up";
                 }
             }
-        }
-        private void txtPassword_TextChanged(object sender, EventArgs e)
-        {
-
-        }
-
-       // Dọn dẹp bộ nhớ và ngắt TCP khi người dùng tắt Form này đi
-        protected override void OnFormClosed(FormClosedEventArgs e)
-        {
-            _connection.Dispose();
-            base.OnFormClosed(e);
         }
     }
 }
