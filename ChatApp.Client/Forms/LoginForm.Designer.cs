@@ -222,7 +222,6 @@
             label12.TabIndex = 11;
             label12.Text = "Chưa có tài khoản ?";
             label12.TextAlign = ContentAlignment.TopRight;
-            label12.Click += label12_Click;
             // 
             // label13
             // 
@@ -270,7 +269,6 @@
             Name = "LoginForm";
             StartPosition = FormStartPosition.CenterScreen;
             Text = " ";
-            Load += LoginForm_Load;
             panel1.ResumeLayout(false);
             panel1.PerformLayout();
             ResumeLayout(false);

@@ -14,19 +14,6 @@ namespace ChatApp.Client.Forms
             InitializeComponent();
         }
 
-        private string HashSHA256(string rawData)
-        {
-            using (SHA256 sha256Hash = SHA256.Create())
-            {
-                byte[] bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(rawData));
-                StringBuilder builder = new StringBuilder();
-                for (int i = 0; i < bytes.Length; i++)
-                {
-                    builder.Append(bytes[i].ToString("x2"));
-                }
-                return builder.ToString();
-            }
-        }
 
         private async void btn_connect_Click(object sender, EventArgs e)
         {
@@ -84,28 +71,12 @@ namespace ChatApp.Client.Forms
             }
         }
 
-
-        protected override void OnFormClosed(FormClosedEventArgs e)
-        {
-            base.OnFormClosed(e);
-        }
-
-        private void LoginForm_Load(object sender, EventArgs e)
-        {
-
-        }
-
         private void label13_Click(object sender, EventArgs e)
         {
             RegisterForm frmres = new RegisterForm();
             frmres.Show();
             frmres.FormClosed += (s, args) => this.Show();
             this.Hide();
-        }
-
-        private void label12_Click(object sender, EventArgs e)
-        {
-
         }
 
         private void btn_demo_chat_Click(object sender, EventArgs e)
