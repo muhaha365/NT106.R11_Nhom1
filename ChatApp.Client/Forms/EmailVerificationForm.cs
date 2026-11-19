@@ -69,6 +69,7 @@ namespace ChatApp.Client.Forms
                 if(!isVerified)
                 {
                     lblStatus.Text = "Email chưa xác minh. Hãy mở liên kết trong thư rồi thử lại.";
+                    return;
                 }
                 DialogResult = DialogResult.OK;
             }

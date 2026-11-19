@@ -77,6 +77,19 @@ namespace ChatApp.Client.Forms
 
                 // Từ thời điểm đã nhận token, mọi lần thử tiếp phải đi đường đăng nhập.
                 chkExistingAccount.Checked = true;
+
+                bool isVerified = await firebase.IsEmailVerifiedAsync(idToken);
+                if(!isVerified)
+                {
+                    using var verification = new EmailVerificationForm(firebase, idToken, email);
+                    var verificationResult = verification.ShowDialog(this);
+                    if(verificationResult != DialogResult.OK)
+                    {
+                        return;
+                    }
+                    idToken = await firebase.LoginAsync(email, password);
+                }
+
                 await protocol.ConnectAsync("127.0.0.1", 5000);
                 var result = await protocol.RequestAsync<AuthenticationResult>(
                     "auth.firebase.request",
