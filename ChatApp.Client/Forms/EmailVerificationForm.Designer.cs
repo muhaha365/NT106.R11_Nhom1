@@ -1,4 +1,4 @@
-﻿namespace ChatApp.Client
+﻿namespace ChatApp.Client.Forms
 {
     partial class EmailVerificationForm
     {
@@ -71,6 +71,7 @@
             btnSendEmail.TabIndex = 3;
             btnSendEmail.Text = "Gửi thư xác minh";
             btnSendEmail.UseVisualStyleBackColor = true;
+            btnSendEmail.Click += btnSendEmail_Click;
             // 
             // btnCheckVerification
             // 
