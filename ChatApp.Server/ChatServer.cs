@@ -274,6 +274,13 @@ public class ChatServer
             {
                 throw new InvalidOperationException("USER_DISABLED");
             }
+
+            if(!account.EmailVerified)
+            {
+                await ReplyAsync(client, packet, null, "EMAIL_NOT_VERIFIED", "Bạn cần xác minh email trước khi đăng nhập.", ct);
+                return;
+            }
+
             var expiresAt = DateTimeOffset.FromUnixTimeSeconds(verified.ExpirationTimeSeconds);
             var user = await _database.GetUserByFirebaseUidAsync(verified.Uid, ct);
             if(user is null)
