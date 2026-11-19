@@ -56,7 +56,7 @@ namespace ChatApp.Client
         {
             return SendAsync("signInWithPassword", email, password, ct);
         }
-        public async Task SendVerificationEmail(string idToken, CancellationToken ct = default)
+        public async Task SendVerificationEmailAsync(string idToken, CancellationToken ct = default)
         {
             string url = $"https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={Uri.EscapeDataString(_apiKey)}";
             using var respone = await Http.PostAsJsonAsync(url, new
