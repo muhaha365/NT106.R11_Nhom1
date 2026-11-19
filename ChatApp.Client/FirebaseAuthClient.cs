@@ -56,6 +56,26 @@ namespace ChatApp.Client
         {
             return SendAsync("signInWithPassword", email, password, ct);
         }
+        public async Task SendVerificationEmail(string idToken, CancellationToken ct = default)
+        {
+            string url = $"https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={Uri.EscapeDataString(_apiKey)}";
+            using var respone = await Http.PostAsJsonAsync(url, new
+            {
+                requestType = "VERIFY_EMAIL",
+                idToken
+            }, ct);
+            string body = await respone.Content.ReadAsStringAsync(ct);
+            if(!respone.IsSuccessStatusCode)
+            {
+                using var json = JsonDocument.Parse(body);
+                string code = "FIREBASE_ERROR";
+                if(json.RootElement.TryGetProperty("error", out var error) && error.TryGetProperty("message", out var message))
+                {
+                    code = message.GetString() ?? code;
+                }
+                throw new FirebaseSignInException(code);
+            }
+        }
     }
     public sealed class FirebaseSignInException : Exception
     {
