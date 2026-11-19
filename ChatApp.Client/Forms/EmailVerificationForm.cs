@@ -29,28 +29,58 @@ namespace ChatApp.Client.Forms
 
         private async void btnSendEmail_Click(object sender, EventArgs e)
         {
-            if(_busy) return;
+            if (_busy) return;
             SetBusy(true);
             lblStatus.Text = "Đang gửi email xác thực...";
 
             try
             {
                 await _firebase.SendVerificationEmailAsync(_idToken);
-                if(IsDisposed || Disposing) return;
+                if (IsDisposed || Disposing) return;
                 lblStatus.Text = "Đã gửi yêu cầu thành công. Hãy kiểm tra hộp thư và thư rác.";
                 btnSendEmail.Text = "Gửi lại email xác thực";
             }
             catch (Exception error)
             {
-                if(IsDisposed || Disposing) return;
+                if (IsDisposed || Disposing) return;
                 lblStatus.Text = AuthMessages.AuthenticationErrorMessage(error, "Chưa gửi được email. Kiểm tra kết nối và thử lại.");
             }
             finally
             {
-                if(!IsDisposed && !Disposing)
+                if (!IsDisposed && !Disposing)
                 {
                     SetBusy(false);
                 }
+            }
+        }
+
+        private async void btnCheckVerification_Click(object sender, EventArgs e)
+        {
+            if(_busy) return;
+
+            SetBusy(true);
+            lblStatus.Text = "Đang kiểm tra trạng thái xác minh...";
+            
+            try
+            {
+                bool isVerified = await _firebase.IsEmailVerifiedAsync(_idToken);
+
+                if(IsDisposed || Disposing) return;
+                if(!isVerified)
+                {
+                    lblStatus.Text = "Email chưa xác minh. Hãy mở liên kết trong thư rồi thử lại.";
+                }
+                DialogResult = DialogResult.OK;
+            }
+            catch(Exception error)
+            {
+                if(IsDisposed || Disposing) return;
+                lblStatus.Text = AuthMessages.AuthenticationErrorMessage(error, "Chưa kiểm tra được trạng thái. Kiểm tra kết nối và thử lại.");
+            }
+            finally
+            {
+                if(!IsDisposed && !Disposing)
+                    SetBusy(false);
             }
         }
     }

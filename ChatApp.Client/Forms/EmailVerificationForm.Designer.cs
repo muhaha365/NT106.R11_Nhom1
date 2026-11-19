@@ -81,6 +81,7 @@
             btnCheckVerification.TabIndex = 4;
             btnCheckVerification.Text = "Tôi đã xác minh";
             btnCheckVerification.UseVisualStyleBackColor = true;
+            btnCheckVerification.Click += btnCheckVerification_Click;
             // 
             // btnCancel
             // 
