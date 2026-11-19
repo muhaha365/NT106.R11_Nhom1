@@ -59,13 +59,13 @@ namespace ChatApp.Client
         public async Task SendVerificationEmailAsync(string idToken, CancellationToken ct = default)
         {
             string url = $"https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={Uri.EscapeDataString(_apiKey)}";
-            using var respone = await Http.PostAsJsonAsync(url, new
+            using var response = await Http.PostAsJsonAsync(url, new
             {
                 requestType = "VERIFY_EMAIL",
                 idToken
             }, ct);
-            string body = await respone.Content.ReadAsStringAsync(ct);
-            if(!respone.IsSuccessStatusCode)
+            string body = await response.Content.ReadAsStringAsync(ct);
+            if(!response.IsSuccessStatusCode)
             {
                 using var json = JsonDocument.Parse(body);
                 string code = "FIREBASE_ERROR";
@@ -75,6 +75,34 @@ namespace ChatApp.Client
                 }
                 throw new FirebaseSignInException(code);
             }
+        }
+        public async Task<bool> IsEmailVerifiedAsync(string idToken, CancellationToken ct = default)
+        {
+            string url = $"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={Uri.EscapeDataString(_apiKey)}";
+
+            using var response = await Http.PostAsJsonAsync(url, new 
+            { 
+                idToken 
+            }, ct);
+
+            string body = await response.Content.ReadAsStringAsync(ct);
+            using var json = JsonDocument.Parse(body);
+
+            if(!response.IsSuccessStatusCode)
+            {
+                string code = "FIREBASE_ERROR";
+                if(json.RootElement.TryGetProperty("error", out var error) && error.TryGetProperty("message", out var message))
+                {
+                    code = message.GetString() ?? code;
+                }
+                throw new FirebaseSignInException(code);
+            }
+            
+            if(!json.RootElement.TryGetProperty("users", out var users) || users.ValueKind != JsonValueKind.Array || users.GetArrayLength() != 1)
+            {
+                throw new InvalidDataException("Firebase không trả về thông tin tài khoản hợp lệ.");
+            }
+            return users[0].TryGetProperty("emailVerified", out var verified) && verified.ValueKind == JsonValueKind.True;
         }
     }
     public sealed class FirebaseSignInException : Exception
