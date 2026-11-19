@@ -29,14 +29,15 @@ namespace ChatApp.Client.Forms
 
         private async void btnSendEmail_Click(object sender, EventArgs e)
         {
+            if(_busy) return;
             SetBusy(true);
-            lblStatus.Text = "Đang gửi eamil xác thực...";
+            lblStatus.Text = "Đang gửi email xác thực...";
 
             try
             {
                 await _firebase.SendVerificationEmailAsync(_idToken);
                 if(IsDisposed || Disposing) return;
-                lblStatus.Text = "Đã gửi email xác thực. Vui lòng kiểm tra gmail";
+                lblStatus.Text = "Đã gửi yêu cầu thành công. Hãy kiểm tra hộp thư và thư rác.";
                 btnSendEmail.Text = "Gửi lại email xác thực";
             }
             catch (Exception error)
