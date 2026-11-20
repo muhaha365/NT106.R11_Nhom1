@@ -14,6 +14,7 @@ partial class MainForm
     private Button btn_send = null!;
     private Button button1 = null!;
     private Button btnDisconnect = null!;
+    private Button btnLogout = null!;
     private Label lblConnectionStatus = null!;
     private Label lblCurrentUser = null!;
     private Label lblStatus = null!;
