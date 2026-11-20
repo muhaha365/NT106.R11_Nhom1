@@ -250,7 +250,7 @@ public partial class MainForm : Form
         {
             if(!_closing && !IsDisposed && !Disposing)
             {
-                MessageBox.Show(this, $"Chưa nhận được xác nhận đăng xuất từ server. Ứng dụng sẽ đọc kết nối và quay về đăng nhập. {error.Message}");
+                MessageBox.Show(this, $"Chưa nhận được xác nhận đăng xuất từ server. Ứng dụng sẽ đóng kết nối và quay về đăng nhập. {error.Message}");
             }
         }
         finally
