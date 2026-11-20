@@ -13,6 +13,7 @@ public sealed class GroupChatPanel : UserControl
     private CancellationTokenSource _sessionLifetime;
     private CancellationTokenSource _selectionLifetime;
     private readonly ListView groupsList = UiTheme.CreateList(("Nhóm của bạn", 240));
+    private readonly ContextMenuStrip _groupMenu = new();
     private readonly Button createGroupButton;
     private readonly Button refreshGroupsButton;
     private readonly MessageTimeline groupMessages = new() { Name = "groupMessages", AccessibleName = "Lịch sử trò chuyện nhóm" };
@@ -80,14 +81,16 @@ public sealed class GroupChatPanel : UserControl
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 29));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 71));
-        var left = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(0, 0, 12, 0) };
+        var left = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4, Padding = new Padding(0, 0, 12, 0) };
         left.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         left.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         left.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         left.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        left.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         left.Controls.Add(UiTheme.CreateTitle("Nhóm của bạn"), 0, 0);
         left.Controls.Add(UiTheme.CreateActions(createGroupButton, refreshGroupsButton), 0, 1);
         left.Controls.Add(groupsList, 0, 2);
+        left.Controls.Add(UiTheme.CreateActions(membersButton), 0, 3);
         var right = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 7 };
         right.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -97,12 +100,7 @@ public sealed class GroupChatPanel : UserControl
         right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         right.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
         right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, AutoSize = true };
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        header.Controls.Add(groupTitleLabel, 0, 0);
-        header.Controls.Add(membersButton, 1, 0);
-        right.Controls.Add(header, 0, 0);
+        right.Controls.Add(groupTitleLabel, 0, 0);
         right.Controls.Add(groupStatusLabel, 0, 1);
         right.Controls.Add(groupMessages, 0, 2);
         right.Controls.Add(UiTheme.CreateActions(loadHistoryButton), 0, 3);
@@ -115,7 +113,9 @@ public sealed class GroupChatPanel : UserControl
         root.Controls.Add(left, 0, 0);
         root.Controls.Add(right, 1, 0);
         Controls.Add(root);
+        _groupMenu.Items.Add("Thành viên", null, MembersButton_Click);
         groupsList.SelectedIndexChanged += GroupsList_SelectedIndexChanged;
+        groupsList.MouseUp += GroupsList_MouseUp;
         groupsList.Resize += GroupsList_Resize;
         groupMessageBox.TextChanged += MessageBox_TextChanged;
         groupMessageBox.KeyDown += MessageBox_KeyDown;
@@ -141,6 +141,17 @@ public sealed class GroupChatPanel : UserControl
     private void GroupsList_Resize(object? sender, EventArgs e)
     {
         groupsList.Columns[0].Width = Math.Max(60, groupsList.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 4);
+    }
+
+    private void GroupsList_MouseUp(object? sender, MouseEventArgs e)
+    {
+        if (e.Button != MouseButtons.Right || _sending || _dialogOpen) return;
+        var row = groupsList.GetItemAt(e.X, e.Y);
+        if (row is null) return;
+
+        row.Selected = true;
+        row.Focused = true;
+        if (membersButton.Enabled) _groupMenu.Show(groupsList, e.Location);
     }
 
     private async void MessageBox_KeyDown(object? sender, KeyEventArgs e)
@@ -237,6 +248,10 @@ public sealed class GroupChatPanel : UserControl
         }
         // Đổi phiên/đóng màn hình thì ngừng tải; không cần hiện lỗi cho người dùng.
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (ProtocolRequestException error) when (error.Code is "NOT_IMPLEMENTED" or "UNKNOWN_TYPE")
+        {
+            if (CurrentSession(session)) groupStatusLabel.Text = "Server hiện chưa hỗ trợ danh sách nhóm.";
+        }
         catch (Exception error) { if (CurrentSession(session)) groupStatusLabel.Text = error.Message; }
         finally
         {
@@ -586,6 +601,7 @@ public sealed class GroupChatPanel : UserControl
     {
         if (disposing && !IsDisposed)
         {
+            _groupMenu.Dispose();
             _lifetime.Cancel();
             _activeDialog?.Close();
             _selectionLifetime.Cancel();
