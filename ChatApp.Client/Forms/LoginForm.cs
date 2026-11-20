@@ -29,6 +29,18 @@ namespace ChatApp.Client.Forms
             {
                 var firebase = new FirebaseAuthClient(Environment.GetEnvironmentVariable("FIREBASE_WEB_API_KEY") ?? "");
                 string idToken = await firebase.LoginAsync(email, password);
+                
+                bool isVerified = await firebase.IsEmailVerifiedAsync(idToken);
+                if(!isVerified)
+                {
+                    using var verification = new EmailVerificationForm(firebase, idToken, email);
+                    var verificationResult = verification.ShowDialog(this);
+                    if(verificationResult != DialogResult.OK)
+                    {
+                        return;
+                    }
+                    idToken = await firebase.LoginAsync(email, password);
+                }
                 await protocol.ConnectAsync("127.0.0.1", 5000);
                 var result = await protocol.RequestAsync<AuthenticationResult>(
                     "auth.firebase.request", new FirebaseLoginRequest(idToken, null, null));
