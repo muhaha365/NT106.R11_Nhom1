@@ -15,7 +15,6 @@ public sealed class GroupMembersDialog : Form
     private readonly Button removeMemberButton;
     private readonly Label _status = UiTheme.CreateHint("Đang tải thành viên…");
     private readonly List<UserSummary> _members = new();
-    private List<UserSummary> _acceptedFriends = new();
     private bool _busy;
     private bool _loaded;
     public bool MembershipChanged { get; private set; }
@@ -100,7 +99,7 @@ public sealed class GroupMembersDialog : Form
         await ChangeMemberAsync(member, "group.member.remove.request", "Đang xóa thành viên…");
     }
 
-    private async Task LoadAsync()
+    private async Task LoadAsync(string? confirmation = null)
     {
         _busy = true;
         _loaded = false;
@@ -127,24 +126,34 @@ public sealed class GroupMembersDialog : Form
             _members.Clear();
             _members.AddRange(members.Values.OrderBy(user => user.Id));
             RenderMembers();
-            if (_group.CreatedBy == _user.Id)
-                _acceptedFriends = await GroupUiData.LoadFriendsAsync(_client, _user.Id, _lifetime.Token);
-            if (!Active) return;
-            RenderFriends();
             _loaded = true;
             _status.Text = $"{_members.Count}/20 thành viên. ";
             if (_group.CreatedBy == _user.Id)
+            {
+                _friends.Items.Clear();
+                var friends = await GroupUiData.LoadFriendsAsync(_client, _user.Id, _lifetime.Token);
+                if (!Active) return;
+                RenderFriends(friends);
                 _status.Text += "Chủ nhóm có thể thêm hoặc xóa thành viên.";
+            }
             else
                 _status.Text += "Chỉ chủ nhóm có thể quản lý thành viên.";
         }
         // Đóng dialog hoặc đổi phiên thì bỏ kết quả đang chờ, không báo lỗi.
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (ProtocolRequestException error) when (error.Code is "NOT_IMPLEMENTED" or "UNKNOWN_TYPE")
+        {
+            if (Active)
+                _status.Text = _loaded
+                    ? "Server hiện chưa hỗ trợ danh sách bạn bè để thêm vào nhóm."
+                    : "Server hiện chưa hỗ trợ danh sách thành viên.";
+        }
         catch (Exception error) { if (Active) _status.Text = error.Message; }
         finally
         {
             if (Active)
             {
+                if (confirmation is not null) _status.Text = confirmation + " " + _status.Text;
                 _busy = false;
                 UpdateActions();
             }
@@ -162,20 +171,12 @@ public sealed class GroupMembersDialog : Form
         }
     }
 
-    private void RenderFriends()
+    private void RenderFriends(List<UserSummary> friends)
     {
-        List<int> memberIds = new List<int>();
-        foreach (UserSummary member in _members)
+        foreach (UserSummary friend in friends)
         {
-            memberIds.Add(member.Id);
-        }
-        _friends.Items.Clear();
-        foreach (UserSummary friend in _acceptedFriends)
-        {
-            if (!memberIds.Contains(friend.Id))
-            {
+            if (!_members.Any(member => member.Id == friend.Id))
                 _friends.Items.Add(friend);
-            }
         }
         if (_friends.Items.Count > 0) _friends.SelectedIndex = 0;
     }
@@ -188,7 +189,7 @@ public sealed class GroupMembersDialog : Form
             selected = memberList.SelectedItems[0].Tag as UserSummary;
         addMemberButton.Enabled = allowed && _members.Count < 20 && _friends.SelectedItem is UserSummary;
         removeMemberButton.Enabled = allowed && selected is not null && selected.Id != _group.CreatedBy;
-        _friends.Enabled = allowed;
+        _friends.Enabled = addMemberButton.Enabled;
     }
 
     // Hai nút chọn người khác nhau, nhưng dùng chung bước gửi và tải lại danh sách.
@@ -206,14 +207,16 @@ public sealed class GroupMembersDialog : Form
             if (!Active) return;
             if (result.GroupId != _group.Id || result.UserId != selected.Id) throw new InvalidDataException("Phản hồi thành viên không khớp yêu cầu.");
             MembershipChanged = true;
-            await LoadAsync();
+            await LoadAsync(requestType == "group.member.add.request"
+                ? $"Đã thêm {selected.DisplayName}."
+                : $"Đã xóa {selected.DisplayName}.");
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception error)
         {
             if (Active)
             {
-                NeedsRefresh = error is TimeoutException || error is IOException;
+                NeedsRefresh = error is not ProtocolRequestException;
                 if (NeedsRefresh) _loaded = false;
                 _status.Text = error.Message;
                 if (NeedsRefresh)
