@@ -14,6 +14,7 @@ partial class MainForm
     private Button btn_send = null!;
     private Button button1 = null!;
     private Button btnDisconnect = null!;
+    private Button btnLogout = null!;
     private Label lblConnectionStatus = null!;
     private Label lblCurrentUser = null!;
     private Label lblStatus = null!;
@@ -63,6 +64,10 @@ partial class MainForm
         btnDisconnect = UiTheme.CreateButton("Ngắt kết nối", (_, _) => _protocol.Disconnect());
         btnDisconnect.Name = "disconnectButton";
         connection.Controls.Add(btnDisconnect);
+
+        btnLogout = UiTheme.CreateButton("Đăng xuất", btnLogout_Click);
+        btnLogout.Name = "logoutButton";
+        connection.Controls.Add(btnLogout);
         lblConnectionStatus = new Label { Name = "connectionStatus", Text = "Chưa kết nối", AutoSize = true, Margin = new Padding(8, 8, 16, 0) };
         lblCurrentUser = new Label { Name = "currentUserLabel", Text = "Chưa đăng nhập", AutoSize = true, ForeColor = UiTheme.Muted, Margin = new Padding(0, 8, 0, 0) };
         connection.Controls.Add(lblConnectionStatus);
