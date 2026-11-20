@@ -2,6 +2,7 @@ using System.Text.Json;
 using ChatApp.Shared;
 using ChatApp.Shared.Contracts;
 using ChatApp.Client.Controls;
+using System.Windows.Forms.VisualStyles;
 
 namespace ChatApp.Client.Forms;
 
@@ -13,6 +14,7 @@ public partial class MainForm : Form
     private UserSummary? _currentUser;
     private bool _connecting;
     private bool _closing;
+    private bool _loggingOut;
     private bool CanSendChat
     {
         get { return _protocol.IsConnected && _currentUser != null; }
@@ -229,7 +231,37 @@ public partial class MainForm : Form
     {
         if (!_closing) lblStatus.Text = text;
     }
+    private async void btnLogout_Click(object? sender, EventArgs e)
+    {
+        if(_loggingOut || _closing) return;
 
+        _loggingOut = true;
+        Enabled = false;
+        SetStatus("Đang đăng xuất...");
+        
+        try
+        {
+            if(_protocol.IsConnected && _currentUser != null)
+            {
+                await _protocol.RequestAsync<EmptyResult>("auth.logout.request", new { });
+            }
+        }
+        catch (Exception error)
+        {
+            if(!_closing && !IsDisposed && !Disposing)
+            {
+                MessageBox.Show(this, $"Chưa nhận được xác nhận đăng xuất từ server. Ứng dụng sẽ đọc kết nối và quay về đăng nhập. {error.Message}");
+            }
+        }
+        finally
+        {
+            DisposeConnection();
+            if(!IsDisposed && !Disposing)
+            {
+                Close();
+            }
+        }
+    }
     private void DisposeConnection()
     {
         if (_closing) return;
