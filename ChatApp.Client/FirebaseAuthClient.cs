@@ -104,6 +104,34 @@ namespace ChatApp.Client
             }
             return users[0].TryGetProperty("emailVerified", out var verified) && verified.ValueKind == JsonValueKind.True;
         }
+        public async Task SendPasswordResetEmailAsync(string email, CancellationToken ct = default)
+        {
+            if(string.IsNullOrWhiteSpace(email))
+            {
+                throw new ArgumentException("Vui lòng nhập email");
+            }
+            
+            string url = $"https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={Uri.EscapeDataString(_apiKey)}";
+            using var response = await Http.PostAsJsonAsync(url, new
+            {
+                requestType = "PASSWORD_RESET",
+                email = email.Trim(),
+            }, ct);
+
+            string body = await response.Content.ReadAsStringAsync(ct);
+            
+            if(!response.IsSuccessStatusCode)
+            {
+                using var json = JsonDocument.Parse(body);
+                string code = "FIREBASE_ERROR";
+
+                if(json.RootElement.TryGetProperty("error", out var error) && error.TryGetProperty("message", out var message))
+                {
+                    code = message.GetString() ?? code;
+                }
+                throw new FirebaseSignInException(code);
+            }
+        }
     }
     public sealed class FirebaseSignInException : Exception
     {
