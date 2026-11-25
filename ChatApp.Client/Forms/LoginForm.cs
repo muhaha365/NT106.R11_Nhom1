@@ -89,6 +89,8 @@ namespace ChatApp.Client.Forms
                 MessageBox.Show("Vui lòng nhập email");
                 return;
             }
+            btn_connect.Enabled = false;
+            btn_forgotpassword.Enabled = false;
             try
             {
                 var firebase = new FirebaseAuthClient(Environment.GetEnvironmentVariable("FIREBASE_WEB_API_KEY") ?? "");
@@ -96,7 +98,7 @@ namespace ChatApp.Client.Forms
                 
                 if(IsDisposed || Disposing) return;
 
-                MessageBox.Show(this, "Đã gửi email đặt lại mật khẩu. Vui lòng kiểm tra hộp thư của bạn.");
+                MessageBox.Show(this, "Nếu email này có tài khoản phù hợp, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu. Hãy kiểm tra cả thư mục spam.");
 
             }
             catch (Exception error)
@@ -105,7 +107,7 @@ namespace ChatApp.Client.Forms
                 string message;
                 if(error is FirebaseSignInException firebaseError && firebaseError.Code == "EMAIL_NOT_FOUND")
                 {
-                    message = "Email không tồn tại";
+                    message = "Nếu email này có tài khoản phù hợp, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu. Hãy kiểm tra cả thư mục spam.";
                 }
                 else
                 {
