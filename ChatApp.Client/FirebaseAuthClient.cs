@@ -82,23 +82,11 @@ namespace ChatApp.Client
         }
         public async Task SendVerificationEmailAsync(string idToken, CancellationToken ct = default)
         {
-            string url = $"https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={Uri.EscapeDataString(_apiKey)}";
-            using var response = await Http.PostAsJsonAsync(url, new
+            await PostAsync("sendOobCode", new
             {
                 requestType = "VERIFY_EMAIL",
                 idToken
             }, ct);
-            string body = await response.Content.ReadAsStringAsync(ct);
-            if(!response.IsSuccessStatusCode)
-            {
-                using var json = JsonDocument.Parse(body);
-                string code = "FIREBASE_ERROR";
-                if(json.RootElement.TryGetProperty("error", out var error) && error.TryGetProperty("message", out var message))
-                {
-                    code = message.GetString() ?? code;
-                }
-                throw new FirebaseSignInException(code);
-            }
         }
         public async Task<bool> IsEmailVerifiedAsync(string idToken, CancellationToken ct = default)
         {
