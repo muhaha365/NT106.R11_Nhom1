@@ -133,11 +133,7 @@ public sealed class ProtocolClient : IDisposable
         if (!response.Payload.HasValue)
             throw new JsonException("Phản hồi thiếu Payload.");
         JsonElement body = response.Payload.Value;
-        if (response.Type == "system.error.response")
-        {
-            ServerError error = ReadData<ServerError>(body, "Phản hồi thiếu lỗi.");
-            throw new ProtocolRequestException(error.Code, error.Message);
-        }
+    
         ServerReply reply = ReadData<ServerReply>(body, "Phản hồi rỗng.");
         if (reply.Success)
         {
@@ -203,7 +199,10 @@ public sealed class ProtocolClient : IDisposable
         // Phản hồi đến sau khi request hết thời gian chờ thì bỏ qua.
         if (!_pending.TryGetValue(packet.RequestId, out var request)) return true;
         if (request.Connection != connection) return true;
-        if (packet.Type != request.ResponseType && packet.Type != "system.error.response") return false;
+        if (packet.Type != request.ResponseType)
+        {
+            return false;
+        }
         request.Completion.TrySetResult(packet);
         return true;
     }

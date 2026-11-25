@@ -125,18 +125,16 @@ public class ChatServer
                     break;
                 }
 
-                if(isRequest)
+                if (isRequest)
                 {
-                    await sender.SendPacketAsync(new Packet
-                    {
-                        Type = "system.error.response",
-                        RequestId = packet.RequestId,
-                        Payload = JsonSerializer.SerializeToElement(new
-                        {
-                            Code = "NOT_IMPLEMENTED",
-                            Message = "Chức năng này chưa phát triển"
-                        })
-                    }, ct);
+                    await ReplyAsync(
+                        sender,
+                        packet,
+                        null,
+                        "NOT_IMPLEMENTED",
+                        "Chức năng này chưa phát triển",
+                        ct);
+
                     continue;
                 }
                 if (packet.Type != "chat")
