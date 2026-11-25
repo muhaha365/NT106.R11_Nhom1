@@ -22,6 +22,30 @@ namespace ChatApp.Client
             }
             _apiKey = apiKey;
         }
+        private async Task<string> PostAsync(string action, object payload, CancellationToken ct = default)
+        {
+            string url =
+                $"https://identitytoolkit.googleapis.com/v1/accounts:{action}?key={Uri.EscapeDataString(_apiKey)}";
+
+            using var response = await Http.PostAsJsonAsync(url, payload, ct);
+            string body = await response.Content.ReadAsStringAsync(ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                using var json = JsonDocument.Parse(body);
+                string code = "FIREBASE_ERROR";
+
+                if (json.RootElement.TryGetProperty("error", out var error)
+                    && error.TryGetProperty("message", out var message))
+                {
+                    code = message.GetString() ?? code;
+                }
+
+                throw new FirebaseSignInException(code);
+            }
+
+            return body;
+        }
         private async Task<string> SendAsync(string action, string email, string password, CancellationToken ct = default)
         {
             string url = $"https://identitytoolkit.googleapis.com/v1/accounts:{action}?key={Uri.EscapeDataString(_apiKey)}";
