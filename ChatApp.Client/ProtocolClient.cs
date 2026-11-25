@@ -14,11 +14,13 @@ public sealed class ProtocolClient : IDisposable
         public string ResponseType { get; }
         public TaskCompletionSource<Packet> Completion { get; }
 
-        public Pending(ClientConnection connection, string responseType, TaskCompletionSource<Packet> completion)
+        public Pending(ClientConnection connection, string responseType)
         {
             Connection = connection;
             ResponseType = responseType;
-            Completion = completion;
+
+            Completion = new TaskCompletionSource<Packet>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
         }
     }
 
@@ -91,8 +93,7 @@ public sealed class ProtocolClient : IDisposable
         string requestName = requestType.Substring(0, requestType.Length - ".request".Length);
         string responseType = requestName + ".response";
         // TaskCompletionSource là "chỗ chờ": await ở đây, vòng nhận điền kết quả ở TrySetResult.
-        var completion = new TaskCompletionSource<Packet>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var request = new Pending(connection, responseType, completion);
+        var request = new Pending(connection, responseType);
         _pending[id] = request; // Lưu chỗ chờ trước khi gửi để không bỏ lỡ phản hồi nhanh.
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(_timeout);
