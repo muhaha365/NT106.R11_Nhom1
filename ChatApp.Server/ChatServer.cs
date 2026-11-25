@@ -264,15 +264,25 @@ public class ChatServer
         {
             JsonElement payload = packet.Payload.Value;
             FirebaseLoginRequest? request = JsonSerializer.Deserialize<FirebaseLoginRequest>(payload);
-            if(request is null || string.IsNullOrWhiteSpace(request.IdToken) || request.IdToken.Length > 16384)
+            if (request is null
+                || string.IsNullOrWhiteSpace(request.IdToken)
+                || request.IdToken.Length > 16384)
             {
-                throw new ArgumentException("INVALID_REQUEST");
+                await ReplyAsync(client, packet, null,
+                    "INVALID_REQUEST",
+                    "Thông tin gửi lên không hợp lệ. Hãy kiểm tra lại.",
+                    ct);
+                return;
             }
             var verified = await FirebaseAuth.DefaultInstance.VerifyIdTokenAsync(request.IdToken, checkRevoked: true, cancellationToken: ct);
             var account = await FirebaseAuth.DefaultInstance.GetUserAsync(verified.Uid, ct);
-            if(account.Disabled)
+            if (account.Disabled)
             {
-                throw new InvalidOperationException("USER_DISABLED");
+                await ReplyAsync(client, packet, null,
+                    "USER_DISABLED",
+                    "Tài khoản đã bị vô hiệu hóa.",
+                    ct);
+                return;
             }
 
             if(!account.EmailVerified)
@@ -285,25 +295,41 @@ public class ChatServer
             var user = await _database.GetUserByFirebaseUidAsync(verified.Uid, ct);
             if(user is null)
             {
-                if(string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.DisplayName))
+                if (string.IsNullOrWhiteSpace(request.Username)
+                    || string.IsNullOrWhiteSpace(request.DisplayName))
                 {
-                    throw new InvalidOperationException("PROFILE_REQUIRED");
+                    await ReplyAsync(client, packet, null,
+                        "PROFILE_REQUIRED",
+                        "Tài khoản đã có, cần hoàn tất hồ sơ ứng dụng.",
+                        ct);
+                    return;
                 }
                 user = await _database.EnsureProfileAsync(verified.Uid, request.Username, request.DisplayName, ct);
             }
-            lock(_sessionlock)
+            lock (_sessionlock)
             {
-                if(DateTimeOffset.UtcNow >= expiresAt)
+                if (DateTimeOffset.UtcNow >= expiresAt)
                 {
-                    throw new InvalidOperationException("INVALID_TOKEN");
+                    code = "INVALID_TOKEN";
+                    message = "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.";
                 }
-                if(_onlineUsers.ContainsKey(user.Id))
+                else if (_onlineUsers.ContainsKey(user.Id))
                 {
-                    throw new InvalidOperationException("ALREADY_ONLINE");
+                    code = "ALREADY_ONLINE";
+                    message = "Tài khoản đang đăng nhập ở kết nối khác.";
                 }
-                client.UserId = user.Id;
-                client.SessionExpiresAt = expiresAt;
-                _onlineUsers.Add(user.Id, client);
+                else
+                {
+                    client.UserId = user.Id;
+                    client.SessionExpiresAt = expiresAt;
+                    _onlineUsers.Add(user.Id, client);
+                }
+            }
+
+            if (code != null)
+            {
+                await ReplyAsync(client, packet, null, code, message, ct);
+                return;
             }
             UserSummary onlineUser = new UserSummary(user.Id, user.Username, user.DisplayName, true);
             result = new AuthenticationResult(onlineUser);
