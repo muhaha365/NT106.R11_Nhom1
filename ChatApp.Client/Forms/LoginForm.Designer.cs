@@ -46,6 +46,8 @@
             label12 = new Label();
             label13 = new Label();
             btn_demo_chat = new Button();
+            button1 = new Button();
+            btn_forgotpassword = new Button();
             panel1.SuspendLayout();
             SuspendLayout();
             // 
@@ -246,6 +248,26 @@
             btn_demo_chat.UseVisualStyleBackColor = true;
             btn_demo_chat.Click += btn_demo_chat_Click;
             // 
+            // button1
+            // 
+            button1.Location = new Point(0, 0);
+            button1.Name = "button1";
+            button1.Size = new Size(94, 29);
+            button1.TabIndex = 14;
+            button1.Text = "button1";
+            button1.UseVisualStyleBackColor = true;
+            // 
+            // btn_forgotpassword
+            // 
+            btn_forgotpassword.AutoSize = true;
+            btn_forgotpassword.Location = new Point(667, 317);
+            btn_forgotpassword.Name = "btn_forgotpassword";
+            btn_forgotpassword.Size = new Size(136, 32);
+            btn_forgotpassword.TabIndex = 15;
+            btn_forgotpassword.Text = "Quên mật khẩu";
+            btn_forgotpassword.UseVisualStyleBackColor = true;
+            btn_forgotpassword.Click += btn_forgotpassword_Click;
+            // 
             // LoginForm
             // 
             AutoScaleDimensions = new SizeF(9F, 20F);
@@ -253,6 +275,8 @@
             AutoSizeMode = AutoSizeMode.GrowAndShrink;
             BackColor = Color.Honeydew;
             ClientSize = new Size(901, 521);
+            Controls.Add(btn_forgotpassword);
+            Controls.Add(button1);
             Controls.Add(btn_demo_chat);
             Controls.Add(label13);
             Controls.Add(label12);
@@ -295,5 +319,7 @@
         private Label label12;
         private Label label13;
         private Button btn_demo_chat;
+        private Button button1;
+        private Button btn_forgotpassword;
     }
 }

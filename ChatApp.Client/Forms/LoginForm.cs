@@ -1,4 +1,5 @@
 using ChatApp.Shared.Contracts;
+using System.Security.Authentication;
 using static ChatApp.Client.AuthMessages;
 
 namespace ChatApp.Client.Forms
@@ -29,13 +30,13 @@ namespace ChatApp.Client.Forms
             {
                 var firebase = new FirebaseAuthClient(Environment.GetEnvironmentVariable("FIREBASE_WEB_API_KEY") ?? "");
                 string idToken = await firebase.LoginAsync(email, password);
-                
+
                 bool isVerified = await firebase.IsEmailVerifiedAsync(idToken);
-                if(!isVerified)
+                if (!isVerified)
                 {
                     using var verification = new EmailVerificationForm(firebase, idToken, email);
                     var verificationResult = verification.ShowDialog(this);
-                    if(verificationResult != DialogResult.OK)
+                    if (verificationResult != DialogResult.OK)
                     {
                         return;
                     }
@@ -76,6 +77,51 @@ namespace ChatApp.Client.Forms
                 }
             }
         }
+        private async void btn_forgotpassword_Click(object sender, EventArgs e)
+        {
+            if (!btn_connect.Enabled || !btn_forgotpassword.Enabled)
+            {
+                return;
+            }
+            string email = txtEmail.Text.Trim();
+            if(string.IsNullOrWhiteSpace(email))
+            {
+                MessageBox.Show("Vui lòng nhập email");
+                return;
+            }
+            try
+            {
+                var firebase = new FirebaseAuthClient(Environment.GetEnvironmentVariable("FIREBASE_WEB_API_KEY") ?? "");
+                await firebase.SendPasswordResetEmailAsync(email);
+                
+                if(IsDisposed || Disposing) return;
+
+                MessageBox.Show(this, "Đã gửi email đặt lại mật khẩu. Vui lòng kiểm tra hộp thư của bạn.");
+
+            }
+            catch (Exception error)
+            {
+                if (IsDisposed || Disposing) return;
+                string message;
+                if(error is FirebaseSignInException firebaseError && firebaseError.Code == "EMAIL_NOT_FOUND")
+                {
+                    message = "Email không tồn tại";
+                }
+                else
+                {
+                    message = AuthenticationErrorMessage(error, "Chưa gửi được yêu cầu đặt lại mật khẩu. Kiểm tra kết nối và thử lại.");
+                }
+                MessageBox.Show(this, message);
+            }
+            finally
+            {
+                if(!IsDisposed && !Disposing)
+                {
+                    btn_connect.Enabled = true;
+                    btn_forgotpassword.Enabled = true;
+                }
+            }
+        }
 
         private void label13_Click(object sender, EventArgs e)
         {
@@ -90,5 +136,6 @@ namespace ChatApp.Client.Forms
             MainForm form = new MainForm();
             form.Show();
         }
+
     }
 }
