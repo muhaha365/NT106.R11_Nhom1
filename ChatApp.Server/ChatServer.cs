@@ -20,15 +20,6 @@ public class ChatServer
     private int _nextId = 0;
     private readonly object _sessionlock = new object();
     private readonly Dictionary<int, ConnectedClient> _onlineUsers = new();
-    // Tra thông báo theo mã lỗi, dùng chung cho các nhánh xác thực.
-    private static readonly Dictionary<string, string> AuthErrors = new()
-    {
-        ["PROFILE_REQUIRED"] = "Tài khoản đã có, cần hoàn tất hồ sơ ứng dụng.",
-        ["USERNAME_TAKEN"] = "Tên người dùng đã được sử dụng.",
-        ["ALREADY_ONLINE"] = "Tài khoản đang đăng nhập ở kết nối khác.",
-        ["INVALID_TOKEN"] = "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.",
-        ["USER_DISABLED"] = "Tài khoản đã bị vô hiệu hóa."
-    };
     public async Task Run(int port, CancellationToken ct)
     {
         TcpListener listener = new TcpListener(IPAddress.Loopback, port);
@@ -360,10 +351,10 @@ public class ChatServer
             code = "INVALID_REQUEST";
             message = "Payload không hợp lệ";
         }
-        catch (InvalidOperationException ex) when (AuthErrors.ContainsKey(ex.Message))
+        catch (InvalidOperationException ex) when (ex.Message == "USERNAME_TAKEN")
         {
-            code = ex.Message;
-            message = AuthErrors[code];
+            code = "USERNAME_TAKEN";
+            message = "Tên người dùng đã được sử dụng.";
         }
         catch (ArgumentException ex) when (ex.Message == "INVALID_REQUEST")
         {
