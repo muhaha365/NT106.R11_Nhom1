@@ -1,6 +1,6 @@
 namespace ChatApp.Shared.Contracts;
 
-// Dữ liệu công khai trên socket, không dùng UserData có PasswordHash.
+// Các cấu trúc dữ liệu trao đổi giữa client và server.
 public sealed record UserSummary(int Id, string Username, string DisplayName, bool IsOnline);
 public sealed record FriendshipSummary(int UserInvite, int UserReceive, string Status, DateTimeOffset CreatedAt);
 public sealed record FriendEntry(UserSummary User, FriendshipSummary Friendship);
