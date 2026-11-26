@@ -36,7 +36,7 @@ public class PacketIO
     public async Task<Packet?> ReceivePacketAsync(CancellationToken ct = default)
     {
         byte[] header = new byte[4];
-        int headerBytes = await ReadByte(header, ct);
+        int headerBytes = await ReadBytesAsync(header, ct);
         if(headerBytes == 0)
         {
             return null;
@@ -51,7 +51,7 @@ public class PacketIO
             throw new InvalidDataException($"Kích thước gói tin không hợp lệ: {payloadLength} bytes.");
         }
         byte[] payload = new byte[payloadLength];
-        int payloadBytes = await ReadByte(payload, ct);
+        int payloadBytes = await ReadBytesAsync(payload, ct);
         if(payloadBytes < payloadLength)
         {
             throw new InvalidDataException("Không đủ dữ liệu để đọc payload.");
@@ -63,7 +63,7 @@ public class PacketIO
         }
         return packet;
     }
-    private async Task<int> ReadByte(byte[] buffer, CancellationToken ct)
+    private async Task<int> ReadBytesAsync(byte[] buffer, CancellationToken ct)
     {
         int totalBytesRead = 0;
         while (totalBytesRead < buffer.Length)
