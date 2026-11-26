@@ -14,11 +14,13 @@ public sealed class ProtocolClient : IDisposable
         public string ResponseType { get; }
         public TaskCompletionSource<Packet> Completion { get; }
 
-        public Pending(ClientConnection connection, string responseType, TaskCompletionSource<Packet> completion)
+        public Pending(ClientConnection connection, string responseType)
         {
             Connection = connection;
             ResponseType = responseType;
-            Completion = completion;
+
+            Completion = new TaskCompletionSource<Packet>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
         }
     }
 
@@ -91,8 +93,7 @@ public sealed class ProtocolClient : IDisposable
         string requestName = requestType.Substring(0, requestType.Length - ".request".Length);
         string responseType = requestName + ".response";
         // TaskCompletionSource là "chỗ chờ": await ở đây, vòng nhận điền kết quả ở TrySetResult.
-        var completion = new TaskCompletionSource<Packet>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var request = new Pending(connection, responseType, completion);
+        var request = new Pending(connection, responseType);
         _pending[id] = request; // Lưu chỗ chờ trước khi gửi để không bỏ lỡ phản hồi nhanh.
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(_timeout);
@@ -117,11 +118,6 @@ public sealed class ProtocolClient : IDisposable
             // Chờ quá 10 giây (mặc định). UI bắt lỗi này và yêu cầu tải lại trước khi thử lại.
             throw new TimeoutException("Chưa nhận được phản hồi. Kết quả thao tác chưa xác định; hãy tải lại dữ liệu trước khi thử lại.");
         }
-        catch (Exception error) when (error is JsonException || error is KeyNotFoundException || error is InvalidDataException)
-        {
-            Close(connection, "Server gửi phản hồi không hợp lệ.");
-            throw new IOException("Phản hồi của server không đúng protocol.", error);
-        }
         finally
         {
             _pending.TryRemove(id, out _);
@@ -130,28 +126,54 @@ public sealed class ProtocolClient : IDisposable
 
     private T ReadReply<T>(Packet response, ClientConnection connection) where T : class
     {
-        if (!response.Payload.HasValue)
-            throw new JsonException("Phản hồi thiếu Payload.");
-        JsonElement body = response.Payload.Value;
-        if (response.Type == "system.error.response")
+        try
         {
-            ServerError error = ReadData<ServerError>(body, "Phản hồi thiếu lỗi.");
-            throw new ProtocolRequestException(error.Code, error.Message);
+            if (!response.Payload.HasValue)
+            {
+                throw new JsonException("Phản hồi thiếu Payload.");
+            }
+
+            JsonElement body = response.Payload.Value;
+            ServerReply reply = ReadData<ServerReply>(
+                body, "Phản hồi rỗng.");
+
+            if (reply.Success)
+            {
+                if (reply.Error != null
+                    || reply.Data.ValueKind != JsonValueKind.Object)
+                {
+                    throw new JsonException(
+                        "Dữ liệu thành công không hợp lệ.");
+                }
+
+                return ReadData<T>(
+                    reply.Data, "Phản hồi thiếu dữ liệu.");
+            }
+
+            if (reply.Data.ValueKind != JsonValueKind.Null
+                || reply.Error == null)
+            {
+                throw new JsonException("Dữ liệu lỗi không hợp lệ.");
+            }
+
+            if (reply.Error.Code == "NOT_AUTHENTICATED")
+            {
+                Close(connection,
+                    "Phiên đăng nhập không còn hợp lệ. Hãy đăng nhập lại.");
+            }
+
+            throw new ProtocolRequestException(
+                reply.Error.Code,
+                reply.Error.Message);
         }
-        ServerReply reply = ReadData<ServerReply>(body, "Phản hồi rỗng.");
-        if (reply.Success)
+        catch (JsonException error)
         {
-            if (reply.Error != null || reply.Data.ValueKind != JsonValueKind.Object)
-                throw new JsonException("Dữ liệu thành công không hợp lệ.");
-            return ReadData<T>(reply.Data, "Phản hồi thiếu dữ liệu.");
+            Close(connection, "Server gửi phản hồi không hợp lệ.");
+
+            throw new IOException(
+                "Phản hồi của server không đúng protocol.",
+                error);
         }
-        if (reply.Data.ValueKind != JsonValueKind.Null || reply.Error == null)
-            throw new JsonException("Dữ liệu lỗi không hợp lệ.");
-        if (reply.Error.Code == "NOT_AUTHENTICATED")
-        {
-            Close(connection, "Phiên đăng nhập không còn hợp lệ. Hãy đăng nhập lại.");
-        }
-        throw new ProtocolRequestException(reply.Error.Code, reply.Error.Message);
     }
 
     private T ReadData<T>(JsonElement json, string errorMessage) where T : class
@@ -203,7 +225,10 @@ public sealed class ProtocolClient : IDisposable
         // Phản hồi đến sau khi request hết thời gian chờ thì bỏ qua.
         if (!_pending.TryGetValue(packet.RequestId, out var request)) return true;
         if (request.Connection != connection) return true;
-        if (packet.Type != request.ResponseType && packet.Type != "system.error.response") return false;
+        if (packet.Type != request.ResponseType)
+        {
+            return false;
+        }
         request.Completion.TrySetResult(packet);
         return true;
     }

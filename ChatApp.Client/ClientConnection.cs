@@ -28,20 +28,22 @@ public class ClientConnection : IDisposable
 
     public async Task<Packet?> ReceiveAsync()
     {
-        if(_tcpClient == null)
+        if (_packetIO == null)
         {
             throw new InvalidOperationException("Chưa kết nối tới server.");
         }
-        return await _packetIO!.ReceivePacketAsync();
+        return await _packetIO.ReceivePacketAsync();
     }
+
     public async Task SendAsync(Packet packet)
     {
-        if (_tcpClient == null)
+        if (_packetIO == null)
         {
-            return;
+            throw new InvalidOperationException("Chưa kết nối tới server.");
         }
-        await _packetIO!.SendPacketAsync(packet);
+        await _packetIO.SendPacketAsync(packet);
     }
+
     public void Disconnect()
     {
         _tcpClient?.Dispose();

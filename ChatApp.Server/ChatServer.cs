@@ -20,15 +20,6 @@ public class ChatServer
     private int _nextId = 0;
     private readonly object _sessionlock = new object();
     private readonly Dictionary<int, ConnectedClient> _onlineUsers = new();
-    // Tra thông báo theo mã lỗi, dùng chung cho các nhánh xác thực.
-    private static readonly Dictionary<string, string> AuthErrors = new()
-    {
-        ["PROFILE_REQUIRED"] = "Tài khoản đã có, cần hoàn tất hồ sơ ứng dụng.",
-        ["USERNAME_TAKEN"] = "Tên người dùng đã được sử dụng.",
-        ["ALREADY_ONLINE"] = "Tài khoản đang đăng nhập ở kết nối khác.",
-        ["INVALID_TOKEN"] = "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.",
-        ["USER_DISABLED"] = "Tài khoản đã bị vô hiệu hóa."
-    };
     public async Task Run(int port, CancellationToken ct)
     {
         TcpListener listener = new TcpListener(IPAddress.Loopback, port);
@@ -134,18 +125,16 @@ public class ChatServer
                     break;
                 }
 
-                if(isRequest)
+                if (isRequest)
                 {
-                    await sender.SendPacketAsync(new Packet
-                    {
-                        Type = "system.error.response",
-                        RequestId = packet.RequestId,
-                        Payload = JsonSerializer.SerializeToElement(new
-                        {
-                            Code = "NOT_IMPLEMENTED",
-                            Message = "Chức năng này chưa phát triển"
-                        })
-                    }, ct);
+                    await ReplyAsync(
+                        sender,
+                        packet,
+                        null,
+                        "NOT_IMPLEMENTED",
+                        "Chức năng này chưa phát triển",
+                        ct);
+
                     continue;
                 }
                 if (packet.Type != "chat")
@@ -264,15 +253,25 @@ public class ChatServer
         {
             JsonElement payload = packet.Payload.Value;
             FirebaseLoginRequest? request = JsonSerializer.Deserialize<FirebaseLoginRequest>(payload);
-            if(request is null || string.IsNullOrWhiteSpace(request.IdToken) || request.IdToken.Length > 16384)
+            if (request is null
+                || string.IsNullOrWhiteSpace(request.IdToken)
+                || request.IdToken.Length > 16384)
             {
-                throw new ArgumentException("INVALID_REQUEST");
+                await ReplyAsync(client, packet, null,
+                    "INVALID_REQUEST",
+                    "Thông tin gửi lên không hợp lệ. Hãy kiểm tra lại.",
+                    ct);
+                return;
             }
             var verified = await FirebaseAuth.DefaultInstance.VerifyIdTokenAsync(request.IdToken, checkRevoked: true, cancellationToken: ct);
             var account = await FirebaseAuth.DefaultInstance.GetUserAsync(verified.Uid, ct);
-            if(account.Disabled)
+            if (account.Disabled)
             {
-                throw new InvalidOperationException("USER_DISABLED");
+                await ReplyAsync(client, packet, null,
+                    "USER_DISABLED",
+                    "Tài khoản đã bị vô hiệu hóa.",
+                    ct);
+                return;
             }
 
             if(!account.EmailVerified)
@@ -285,25 +284,41 @@ public class ChatServer
             var user = await _database.GetUserByFirebaseUidAsync(verified.Uid, ct);
             if(user is null)
             {
-                if(string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.DisplayName))
+                if (string.IsNullOrWhiteSpace(request.Username)
+                    || string.IsNullOrWhiteSpace(request.DisplayName))
                 {
-                    throw new InvalidOperationException("PROFILE_REQUIRED");
+                    await ReplyAsync(client, packet, null,
+                        "PROFILE_REQUIRED",
+                        "Tài khoản đã có, cần hoàn tất hồ sơ ứng dụng.",
+                        ct);
+                    return;
                 }
                 user = await _database.EnsureProfileAsync(verified.Uid, request.Username, request.DisplayName, ct);
             }
-            lock(_sessionlock)
+            lock (_sessionlock)
             {
-                if(DateTimeOffset.UtcNow >= expiresAt)
+                if (DateTimeOffset.UtcNow >= expiresAt)
                 {
-                    throw new InvalidOperationException("INVALID_TOKEN");
+                    code = "INVALID_TOKEN";
+                    message = "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.";
                 }
-                if(_onlineUsers.ContainsKey(user.Id))
+                else if (_onlineUsers.ContainsKey(user.Id))
                 {
-                    throw new InvalidOperationException("ALREADY_ONLINE");
+                    code = "ALREADY_ONLINE";
+                    message = "Tài khoản đang đăng nhập ở kết nối khác.";
                 }
-                client.UserId = user.Id;
-                client.SessionExpiresAt = expiresAt;
-                _onlineUsers.Add(user.Id, client);
+                else
+                {
+                    client.UserId = user.Id;
+                    client.SessionExpiresAt = expiresAt;
+                    _onlineUsers.Add(user.Id, client);
+                }
+            }
+
+            if (code != null)
+            {
+                await ReplyAsync(client, packet, null, code, message, ct);
+                return;
             }
             UserSummary onlineUser = new UserSummary(user.Id, user.Username, user.DisplayName, true);
             result = new AuthenticationResult(onlineUser);
@@ -334,10 +349,10 @@ public class ChatServer
             code = "INVALID_REQUEST";
             message = "Payload không hợp lệ";
         }
-        catch (InvalidOperationException ex) when (AuthErrors.ContainsKey(ex.Message))
+        catch (InvalidOperationException ex) when (ex.Message == "USERNAME_TAKEN")
         {
-            code = ex.Message;
-            message = AuthErrors[code];
+            code = "USERNAME_TAKEN";
+            message = "Tên người dùng đã được sử dụng.";
         }
         catch (ArgumentException ex) when (ex.Message == "INVALID_REQUEST")
         {

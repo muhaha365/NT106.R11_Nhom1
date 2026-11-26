@@ -22,115 +22,109 @@ namespace ChatApp.Client
             }
             _apiKey = apiKey;
         }
-        private async Task<string> SendAsync(string action, string email, string password, CancellationToken ct = default)
+        private async Task<string> PostAsync(string action, object payload, CancellationToken ct = default)
         {
-            string url = $"https://identitytoolkit.googleapis.com/v1/accounts:{action}?key={Uri.EscapeDataString(_apiKey)}";
-            using var response = await Http.PostAsJsonAsync(url, new
+            string url =
+                $"https://identitytoolkit.googleapis.com/v1/accounts:{action}?key={Uri.EscapeDataString(_apiKey)}";
+
+            using var response = await Http.PostAsJsonAsync(url, payload, ct);
+            string body = await response.Content.ReadAsStringAsync(ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                using var json = JsonDocument.Parse(body);
+                string code = "FIREBASE_ERROR";
+
+                if (json.RootElement.TryGetProperty("error", out var error)
+                    && error.TryGetProperty("message", out var message))
+                {
+                    code = message.GetString() ?? code;
+                }
+
+                throw new FirebaseSignInException(code);
+            }
+
+            return body;
+        }
+        public async Task<string> RegisterAsync(string email, string password, CancellationToken ct = default)
+        {
+            string body = await PostAsync("signUp", new
             {
                 email = email.Trim(),
                 password,
                 returnSecureToken = true
             }, ct);
-            string body = await response.Content.ReadAsStringAsync(ct);
+
             using var json = JsonDocument.Parse(body);
-            if(!response.IsSuccessStatusCode)
+
+            if (!json.RootElement.TryGetProperty("idToken", out var token)
+                || string.IsNullOrWhiteSpace(token.GetString()))
             {
-                string code = "FIREBASE_ERROR";
-                if(json.RootElement.TryGetProperty("error", out var error) && error.TryGetProperty("message", out var message))
-                {
-                    code = message.GetString() ?? code;
-                }
-                throw new FirebaseSignInException(code);
-            }
-            if(!json.RootElement.TryGetProperty("idToken", out var token) || string.IsNullOrWhiteSpace(token.GetString()))
-            {
-                throw new InvalidDataException("Firebase không trả về ID token.");
+                throw new InvalidDataException(
+                    "Firebase không trả về ID token.");
             }
             return token.GetString()!;
         }
-        public Task<string> RegisterAsync(string email, string password, CancellationToken ct = default)
+        public async Task<string> LoginAsync(string email, string password, CancellationToken ct = default)
         {
-            return SendAsync("signUp", email, password, ct);
-        }
-        public Task<string> LoginAsync(string email, string password, CancellationToken ct = default)
-        {
-            return SendAsync("signInWithPassword", email, password, ct);
+            string body = await PostAsync("signInWithPassword", new
+            {
+                email = email.Trim(),
+                password,
+                returnSecureToken = true
+            }, ct);
+
+            using var json = JsonDocument.Parse(body);
+
+            if (!json.RootElement.TryGetProperty("idToken", out var token)
+                || string.IsNullOrWhiteSpace(token.GetString()))
+            {
+                throw new InvalidDataException(
+                    "Firebase không trả về ID token.");
+            }
+            return token.GetString()!;
         }
         public async Task SendVerificationEmailAsync(string idToken, CancellationToken ct = default)
         {
-            string url = $"https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={Uri.EscapeDataString(_apiKey)}";
-            using var response = await Http.PostAsJsonAsync(url, new
+            await PostAsync("sendOobCode", new
             {
                 requestType = "VERIFY_EMAIL",
                 idToken
             }, ct);
-            string body = await response.Content.ReadAsStringAsync(ct);
-            if(!response.IsSuccessStatusCode)
-            {
-                using var json = JsonDocument.Parse(body);
-                string code = "FIREBASE_ERROR";
-                if(json.RootElement.TryGetProperty("error", out var error) && error.TryGetProperty("message", out var message))
-                {
-                    code = message.GetString() ?? code;
-                }
-                throw new FirebaseSignInException(code);
-            }
         }
         public async Task<bool> IsEmailVerifiedAsync(string idToken, CancellationToken ct = default)
         {
-            string url = $"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={Uri.EscapeDataString(_apiKey)}";
-
-            using var response = await Http.PostAsJsonAsync(url, new 
-            { 
-                idToken 
+            string body = await PostAsync("lookup", new
+            {
+                idToken
             }, ct);
 
-            string body = await response.Content.ReadAsStringAsync(ct);
             using var json = JsonDocument.Parse(body);
 
-            if(!response.IsSuccessStatusCode)
+            if (!json.RootElement.TryGetProperty("users", out var users)
+                || users.ValueKind != JsonValueKind.Array
+                || users.GetArrayLength() != 1)
             {
-                string code = "FIREBASE_ERROR";
-                if(json.RootElement.TryGetProperty("error", out var error) && error.TryGetProperty("message", out var message))
-                {
-                    code = message.GetString() ?? code;
-                }
-                throw new FirebaseSignInException(code);
+                throw new InvalidDataException(
+                    "Firebase không trả về thông tin tài khoản hợp lệ.");
             }
-            
-            if(!json.RootElement.TryGetProperty("users", out var users) || users.ValueKind != JsonValueKind.Array || users.GetArrayLength() != 1)
-            {
-                throw new InvalidDataException("Firebase không trả về thông tin tài khoản hợp lệ.");
-            }
-            return users[0].TryGetProperty("emailVerified", out var verified) && verified.ValueKind == JsonValueKind.True;
+
+            return users[0].TryGetProperty("emailVerified", out var verified)
+                && verified.ValueKind == JsonValueKind.True;
         }
+
         public async Task SendPasswordResetEmailAsync(string email, CancellationToken ct = default)
         {
-            if(string.IsNullOrWhiteSpace(email))
+            if (string.IsNullOrWhiteSpace(email))
             {
-                throw new ArgumentException("Vui lòng nhập email");
+                throw new ArgumentException("Vui lòng nhập email.");
             }
-            
-            string url = $"https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={Uri.EscapeDataString(_apiKey)}";
-            using var response = await Http.PostAsJsonAsync(url, new
+
+            await PostAsync("sendOobCode", new
             {
                 requestType = "PASSWORD_RESET",
-                email = email.Trim(),
+                email = email.Trim()
             }, ct);
-
-            string body = await response.Content.ReadAsStringAsync(ct);
-            
-            if(!response.IsSuccessStatusCode)
-            {
-                using var json = JsonDocument.Parse(body);
-                string code = "FIREBASE_ERROR";
-
-                if(json.RootElement.TryGetProperty("error", out var error) && error.TryGetProperty("message", out var message))
-                {
-                    code = message.GetString() ?? code;
-                }
-                throw new FirebaseSignInException(code);
-            }
         }
     }
     public sealed class FirebaseSignInException : Exception
